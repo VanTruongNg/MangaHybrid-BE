@@ -44,14 +44,14 @@ export class AuthController {
     }
 
     @Get('email/verify/:email/:token')
-    async verifyEmail (@Param('email') email: string ,@Param('token') token: string): Promise<ErrorResponseDTO>{
+    async verifyEmail (@Param('email') email: string ,@Param('token') token: string): Promise<{message: string}>{
         try {
             const result = await this.authService.verifyEmail(email, token);
 
             if (result) {
-                return { message: 'Email đã được xác thực thành công', statusCode: HttpStatus.OK };
+                return { message: 'Email đã được xác thực thành công' };
             } else {
-                return { message: 'Xác thực không thành công. Vui lòng kiểm tra mã OTP hoặc thử lại sau', statusCode: HttpStatus.BAD_REQUEST};
+                return { message: 'Xác thực không thành công. Vui lòng kiểm tra mã OTP hoặc thử lại sau' };
             }
         } catch (error) {
             throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
