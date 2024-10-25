@@ -1,8 +1,7 @@
 import { AuthService } from './auth.service';
-import { BadRequestException, Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, HttpCode } from '@nestjs/common';
+import {  Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, HttpCode } from '@nestjs/common';
 import { SignUpDTO } from './dto/signup.dto';
 import { LoginDTO } from './dto/login.dto';
-import { ErrorResponseDTO } from 'src/exceptions/response.dto';
 import { ResetPassworDTO } from './dto/reset-password.dto';
 
 @Controller('auth')
