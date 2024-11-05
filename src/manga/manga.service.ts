@@ -19,7 +19,7 @@ export class MangaService {
     ) {}
 
     async findAll(): Promise<Manga[]> {
-        return this.mangaModel.find({ approvalStatus: ApprovalStatus.PENDING })
+        return this.mangaModel.find({ approvalStatus: ApprovalStatus.APPROVED })
     }
 
     async findById(id: string): Promise<Manga> {

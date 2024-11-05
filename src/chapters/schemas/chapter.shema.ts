@@ -18,7 +18,7 @@ export class Chapter {
     @Prop()
     views: number
 
-    @Prop({type: mongoose.Schema.Types.ObjectId, ref: 'Manga'})
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Manga' })
     manga: Manga
 
     @Prop({ default: function(this: Chapter)

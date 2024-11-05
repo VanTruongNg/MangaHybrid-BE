@@ -1,7 +1,7 @@
 export enum StatusEnum {
     INPROGRESS = 'In Progress',
     COMPLETED = 'Completed',
-    PAUSED = 'Paused'
+    DROPPED = 'Dropped'
 }
 
 export enum ApprovalStatus {
