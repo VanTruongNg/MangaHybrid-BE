@@ -1,5 +1,5 @@
 import { User } from 'src/auth/schemas/user.schema';
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { PassportStrategy } from "@nestjs/passport";
 import { Strategy, ExtractJwt } from 'passport-jwt'
@@ -19,25 +19,37 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         })
     }
 
-    async validate (payload) {
+    async validate(payload) {
         const { id } = payload;
 
         if (payload.type) {
-            throw new UnauthorizedException("Không thể xác thực token")
+            throw new HttpException({
+                statusCode: HttpStatus.UNAUTHORIZED,
+                message: "Không thể xác thực token",
+                code: "AUTH.INVALID_TOKEN"
+            }, HttpStatus.UNAUTHORIZED);
         }
 
         const user = await this.userModel.findById(id)
 
         if (!user) {
-            throw new UnauthorizedException("Vui lòng đăng nhập trước khi thực hiện hành dộng!")
+            throw new HttpException({
+                statusCode: HttpStatus.UNAUTHORIZED,
+                message: "Vui lòng đăng nhập trước khi thực hiện hành động!",
+                code: "AUTH.USER_NOT_FOUND"
+            }, HttpStatus.UNAUTHORIZED);
         }
 
         const token = await this.tokenModel.findOne({ user: user._id }).sort({ createdAt: -1}) 
 
-        if ( token?.isRevoked ) {
-            throw new UnauthorizedException('Token đã bị vô hiệu hoá và không còn được sử dụng nữa. Hãy đăng nhập lại!')
+        if (token?.isRevoked) {
+            throw new HttpException({
+                statusCode: HttpStatus.UNAUTHORIZED,
+                message: 'Token đã bị vô hiệu hoá và không còn được sử dụng nữa. Hãy đăng nhập lại!',
+                code: "AUTH.TOKEN_REVOKED"
+            }, HttpStatus.UNAUTHORIZED);
         }
 
-        return user
+        return user;
     }
 }

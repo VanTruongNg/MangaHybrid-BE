@@ -1,13 +1,11 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, UploadedFiles, UseInterceptors, UseGuards, Req, InternalServerErrorException, HttpException, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, UploadedFiles, UseInterceptors, Req, HttpException, HttpStatus } from '@nestjs/common';
 import { ChaptersService } from './chapters.service';
 import { Chapter } from './schemas/chapter.shema';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { CreateChapterDTO } from './dto/create-chapter.dto';
 import { UpdateChaptersInfoDTO } from './dto/update-info.dto';
-import { AuthGuard } from '@nestjs/passport';
-import { RoleGuards } from 'src/auth/RoleGuard/role.guard';
 import { Role } from 'src/auth/schemas/role.enum';
-import { Roles } from 'src/auth/RoleGuard/role.decorator';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 
 @Controller('chapters')
 export class ChaptersController {
@@ -25,8 +23,7 @@ export class ChaptersController {
         return this.chapterService.getChapterById(id)
     }
 
-    @UseGuards(AuthGuard(), RoleGuards)
-    @Roles(Role.ADMIN, Role.UPLOADER)
+    @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
     @Post('manga/:mangaId')
     @UseInterceptors(FilesInterceptor('files'))
     async createChaptersByManga (
@@ -49,8 +46,7 @@ export class ChaptersController {
     }
 
 
-    @UseGuards(AuthGuard(), RoleGuards)
-    @Roles(Role.ADMIN, Role.UPLOADER)
+    @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
     @Patch('update-info/:chapterId')
     async updateChapterInfo (@Param('chapterId') chapterId: string, @Body() updateInfoDTO: UpdateChaptersInfoDTO, @Req() req: any): Promise<Chapter> {
         try {
@@ -61,8 +57,7 @@ export class ChaptersController {
         }
     }
 
-    @UseGuards(AuthGuard(), RoleGuards)
-    @Roles(Role.ADMIN, Role.UPLOADER)
+    @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
     @Patch('/update-page/:chapterId')
     @UseInterceptors(FilesInterceptor('files'))
     async updatePageUrl (@Req() req: any, @UploadedFiles() files: Express.Multer.File[], @Param('chapterId') chapterId: string): Promise<Chapter> {

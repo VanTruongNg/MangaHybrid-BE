@@ -11,6 +11,7 @@ import { TokenSchema } from './schemas/token.schema';
 import { EmailVerificationSchema } from './schemas/email-verification.schema';
 import { MessqueueModule } from 'src/messqueue/messqueue.module';
 import { PasswordResetSchema } from './schemas/password-reset.schema';
+import { Reflector } from '@nestjs/core';
 
 @Module({
   imports:[
@@ -35,7 +36,7 @@ import { PasswordResetSchema } from './schemas/password-reset.schema';
     MessqueueModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, Reflector],
   exports: [JwtStrategy, PassportModule, MongooseModule]
 })
 export class AuthModule {}

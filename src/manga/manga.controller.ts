@@ -5,11 +5,11 @@ import {
 import { MangaService } from './manga.service';
 import { Manga } from './schemas/manga.schema';
 import { AuthGuard } from '@nestjs/passport';
-import { RoleGuards } from 'src/auth/RoleGuard/role.guard';
-import { Roles } from 'src/auth/RoleGuard/role.decorator';
+import { RoleGuard } from 'src/auth/guards/role.guard';
 import { Role } from 'src/auth/schemas/role.enum';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CreateMangaDTO } from './dto/create-manga.dto';
+import { Auth } from 'src/auth/decorators/auth.decorator';
 
 @Controller('manga')
 export class MangaController {
@@ -37,8 +37,7 @@ export class MangaController {
         return this.mangaService.findById(id)
     }
 
-    @UseGuards(AuthGuard(), RoleGuards)
-    @Roles(Role.UPLOADER, Role.ADMIN)
+    @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
     @UseInterceptors(FileInterceptor('coverImg', {
         limits: {
             fileSize: 5 * 1024 * 1024

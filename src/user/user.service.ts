@@ -1,5 +1,5 @@
 import { ResetPassworDTO } from './dto/reset-password.dto';
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from 'src/auth/schemas/user.schema';
@@ -21,20 +21,21 @@ export class UserService {
 
     async findById(id: string): Promise<User> {
         const user = await this.userModel
-        .findById(id)
-        .populate('following', 'name avatarUrl')
-        .populate('followers', 'name avatarUrl')
-        .lean();
+            .findById(id)
+            .populate('following', '_id name avatarUrl')
+            .populate('followers', '_id name avatarUrl')
+            .select('-password')
+            .lean();
         if (!user) {
-            throw new NotFoundException(`Không tìm thấy User có ID: ${id}`)
+            throw new HttpException(`USER.Không tìm thấy User có ID: ${id}`, HttpStatus.NOT_FOUND)
         }
         return user
-    } 
+    }
 
     async updateAvatar(userId: string, file: Express.Multer.File): Promise<User> {
         const user = await this.userModel.findById(userId)
         if (!user) {
-            throw new NotFoundException(`Không tìm thấy User có ID: ${userId}`)
+            throw new HttpException(`USER.Không tìm thấy User có ID: ${userId}`, HttpStatus.NOT_FOUND)
         }
         const fileName = userId.toString()
         const avatarUrl = await this.awsService.uploadFile(file, fileName)
@@ -48,14 +49,14 @@ export class UserService {
 
     async followUser (userId: string, followUserId: string): Promise<void> {
         if (userId === followUserId) {
-            throw new Error("Bạn không thể follow chính bản thân bạn!")
+            throw new HttpException(`USER.Bạn không thể follow chính bản thân bạn!`, HttpStatus.BAD_REQUEST)
         }
 
         const user = await this.userModel.findById(userId)
         const followUser = await this.userModel.findById(followUserId)
 
         if (!user || !followUser) {
-            throw new NotFoundException("Không tim thấy User")
+            throw new HttpException(`USER.Không tim thấy User`, HttpStatus.NOT_FOUND)
         }
 
         const alreadyFollowed = user.following.some(followedUserId => followedUserId.toString() === followUser._id.toString())
@@ -67,25 +68,25 @@ export class UserService {
             await user.save()
             await followUser.save()
         } else {
-            throw new Error("Bạn đã follow người này rồi")
+            throw new HttpException(`USER.Bạn đã follow người này rồi`, HttpStatus.BAD_REQUEST)
         }
     }
 
     async unfollowUser (userId: string, followUserId: string): Promise<void> {
         if (userId === followUserId) {
-            throw new Error("Bạn không thể unfollow chính bản thân bạn!")
+            throw new HttpException(`USER.Bạn không thể unfollow chính bản thân bạn!`, HttpStatus.BAD_REQUEST)
         }
 
         const user = await this.userModel.findById(userId)
         const followUser = await this.userModel.findById(followUserId)
 
         if (!user || !followUser) {
-            throw new NotFoundException("Không tim thấy User")
+            throw new HttpException(`USER.Không tim thấy User`, HttpStatus.NOT_FOUND)
         }
 
         const alreadyFollowed = user.following.some(fl => fl.following.toString() === followUserId)
         if (!alreadyFollowed) {
-            throw new Error("Bạn chưa follow Uploader này")
+            throw new HttpException(`USER.Bạn chưa follow Uploader này`, HttpStatus.BAD_REQUEST)
         }
         user.following = user.following.filter(fl => fl.following.toString() !== followUserId)
         followUser.followers = user.followers.filter(fl => fl.followers.toString() !== userId)
@@ -99,15 +100,15 @@ export class UserService {
 
         const user = await this.userModel.findOne({ email })
         if (!user) {
-            throw new NotFoundException(`Không tìm thấy User có email: ${email}`)
+            throw new HttpException(`USER.Không tìm thấy User có email: ${email}`, HttpStatus.NOT_FOUND)
         }
 
         const isMatch = await bcrypt.compare(oldPassword, user.password)
         if (!isMatch) {
-            throw new Error ("Mật khẩu cũ không chính xác!")
+            throw new HttpException(`USER.Mật khẩu cũ không chính xác!`, HttpStatus.BAD_REQUEST)
         }
         if (newPassword !== confirmPassword) {
-            throw new Error("Mật khẩu mới và mật khẩu xác nhận phải giống nhau!")
+            throw new HttpException(`USER.Mật khẩu mới và mật khẩu xác nhận phải giống nhau!`, HttpStatus.BAD_REQUEST)
         }
 
         user.password = await bcrypt.hash(newPassword, 10)
@@ -117,17 +118,17 @@ export class UserService {
     async likeManga(userId: string, mangaId: string): Promise<void> {
         const user = await this.userModel.findById (userId)
         if (!user) {
-            throw new UnauthorizedException(`Không tìm thấy User ${userId}`)
+            throw new HttpException(`USER.Không tìm thấy User ${userId}`, HttpStatus.UNAUTHORIZED)
         }
 
         const manga = await this.mangaModel.findById(mangaId)
         if (!manga) {
-            throw new NotFoundException(`Manga ${mangaId} không tồn tại`)
+            throw new HttpException(`USER.Manga ${mangaId} không tồn tại`, HttpStatus.NOT_FOUND)
         }
 
         const index = user.favoritesManga.findIndex(fav => fav.toString() === mangaId)
         if (index !== -1) {
-            throw new ConflictException(`${manga.title} đã được bạn thích trước đây`)
+            throw new HttpException(`USER.${manga.title} đã được bạn thích trước đây`, HttpStatus.CONFLICT)
         }
 
         user.favoritesManga.push(manga)
@@ -140,17 +141,17 @@ export class UserService {
     async unlikeManga(userId: string, mangaId: string): Promise<void> {
         const user = await this.userModel.findById (userId)
         if (!user) {
-            throw new UnauthorizedException(`Không tìm thấy User ${userId}`)
+            throw new HttpException(`USER.Không tìm thấy User ${userId}`, HttpStatus.NOT_FOUND)
         }
 
         const manga = await this.mangaModel.findById(mangaId)
         if (!manga) {
-            throw new NotFoundException(`Manga ${mangaId} không tồn tại`)
+            throw new HttpException(`USER.Manga ${mangaId} không tồn tại`, HttpStatus.NOT_FOUND)
         }
 
         const index = user.favoritesManga.findIndex(fav => fav.toString() === mangaId)
         if (index === -1) {
-            throw new ConflictException(`${manga.title} chưa được bạn thích trước đây`)
+            throw new HttpException(`USER.${manga.title} chưa được bạn thích trước đây`, HttpStatus.CONFLICT)
         }
 
         user.favoritesManga.splice(index, 1)
@@ -163,17 +164,17 @@ export class UserService {
     async dislikeManga (userId: string, mangaId: string): Promise<void> {
         const user = await this.userModel.findById (userId)
         if (!user) {
-            throw new UnauthorizedException(`Không tìm thấy User ${userId}`)
+            throw new HttpException(`USER.Không tìm thấy User ${userId}`, HttpStatus.UNAUTHORIZED)
         }
 
         const manga = await this.mangaModel.findById(mangaId)
         if (!manga) {
-            throw new NotFoundException(`Manga ${mangaId} không tồn tại`)
+            throw new HttpException(`USER.Manga ${mangaId} không tồn tại`, HttpStatus.NOT_FOUND)
         }
 
         const index = user.dislikedManga.findIndex(fav => fav.toString() === mangaId)
         if (index !== -1) {
-            throw new ConflictException(`Bạn đã dislike ${manga.title} trước đây`)
+            throw new HttpException(`USER.Bạn đã dislike ${manga.title} trước đây`, HttpStatus.CONFLICT)
         }
 
         user.dislikedManga.push(manga)
@@ -187,17 +188,17 @@ export class UserService {
     async undislikeManga(userId: string, mangaId: string): Promise<void> {
         const user = await this.userModel.findById (userId)
         if (!user) {
-            throw new UnauthorizedException(`Không tìm thấy User ${userId}`)
+            throw new HttpException(`USER.Không tìm thấy User ${userId}`, HttpStatus.UNAUTHORIZED)
         }
 
         const manga = await this.mangaModel.findById(mangaId)
         if (!manga) {
-            throw new NotFoundException(`Manga ${mangaId} không tồn tại`)
+            throw new HttpException(`USER.Manga ${mangaId} không tồn tại`, HttpStatus.NOT_FOUND)
         }
 
         const index = user.dislikedManga.findIndex(fav => fav.toString() === mangaId)
         if (index === -1) {
-            throw new ConflictException(`${manga.title} chưa được bạn thích trước đây`)
+            throw new HttpException(`USER.${manga.title} chưa được bạn thích trước đây`, HttpStatus.CONFLICT)
         }
 
         user.dislikedManga.splice(index ,1)

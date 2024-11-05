@@ -12,7 +12,7 @@ services:
     container_name: webtoon-nestjs-server_final
 
   mongodb:
-    image: mongo
+    image: mongo:latest
     ports:
       - "27017:27017"
     volumes:
@@ -20,12 +20,12 @@ services:
     container_name: mangahybrid_final
 
   redis:
-    image: redis
+    image: redis:latest
     ports:
       - "6379:6379"
     container_name: redis_final
 
 volumes:
   mongo-data:
-    external:
-      name: a71630607f98d1f3bc25643697fe9ed631d9f95cb6a96dfb48ffd1d9a1d10bd6
+    external: true
+    name: a71630607f98d1f3bc25643697fe9ed631d9f95cb6a96dfb48ffd1d9a1d10bd6
