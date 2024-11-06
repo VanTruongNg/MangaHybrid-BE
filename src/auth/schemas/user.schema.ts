@@ -8,14 +8,18 @@ import { Chapter } from "src/chapters/schemas/chapter.shema";
  timestamps: true,
 })
 export class User{
-
-    @Prop()
+    @Prop({ required: true })
     name: string;
 
-    @Prop({unique: [true, 'Email đã tồn tại']})
+    @Prop({ 
+        required: true, 
+        unique: true,
+        lowercase: true,
+        trim: true 
+    })
     email: string;
 
-    @Prop()
+    @Prop({ required: true })
     password: string;
 
     @Prop({
@@ -52,10 +56,14 @@ export class User{
     @Prop({
         type: [{
             manga: { type: mongoose.Schema.Types.ObjectId, ref: 'Manga'},
-            chapter: { type: mongoose.Schema.Types.ObjectId, ref: 'Chapter'}
+            chapter: { type: mongoose.Schema.Types.ObjectId, ref: 'Chapter'},
+            updatedAt: { type: Date, default: Date.now }
         }]
     })
-    readingHistory: { manga: Manga, chapter: Chapter}[]
+    readingHistory: { manga: Manga, chapter: Chapter, updatedAt: Date }[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ role: 1 });
+UserSchema.index({ 'readingHistory.updatedAt': 1 });
