@@ -1,8 +1,11 @@
 import { AuthService } from './auth.service';
-import {  Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, HttpCode } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, HttpCode, Res } from '@nestjs/common';
 import { SignUpDTO } from './dto/signup.dto';
 import { LoginDTO } from './dto/login.dto';
 import { ResetPassworDTO } from './dto/reset-password.dto';
+import { Platform } from 'src/utils/platform';
+import { Response } from 'express';
+import { RefreshTokenDTO } from './dto/refreshToken.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -21,40 +24,104 @@ export class AuthController {
     }
 
     @Post('/login')
-    async login (@Body() loginDTO: LoginDTO): Promise<{accessToken: string, refreshToken: string}> {
+    async login (
+        @Body() loginDTO: LoginDTO, 
+        @Headers('x-platform') platform: Platform, 
+        @Res({ passthrough: true }) response: Response
+    ): Promise<{accessToken?: string, refreshToken?: string, message: string}> 
+    {
         try {
-            return this.authService.login(loginDTO);
+            const token = await this.authService.login(loginDTO)
+
+            if (platform === Platform.WEB) {
+                response.cookie('access_token', token.accessToken, {
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: 'lax',
+                    maxAge: 15 * 60 * 1000
+                });
+                
+                response.cookie('refresh_token', token.refreshToken, {
+                    httpOnly: true, 
+                    secure: false,
+                    sameSite: 'lax',
+                    maxAge: 24 * 60 * 60 * 1000
+                });
+
+                return { message: 'Đăng nhập thành công' };
+            }
+
+            return {
+                accessToken: token.accessToken,
+                refreshToken: token.refreshToken,
+                message: 'Đăng nhập thành công'
+            }
         } catch (error) {
             throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
 
     @Post('/refresh-token')
-    async refreshToken (@Headers('Authorization') authorization: string): Promise<{accessToken: string}> {
+    async refreshToken(
+        @Headers('x-platform') platform: Platform,
+        @Body() refreshTokenDto: RefreshTokenDTO,
+        @Res({ passthrough: true }) response: Response
+    ): Promise<{accessToken?: string, refreshToken?: string, message: string}> {
         try {
-            if (!authorization || !authorization.startsWith('Bearer ')) {
-                throw new HttpException('Authorization Header không hợp lệ', HttpStatus.BAD_REQUEST)
+            const tokens = await this.authService.refreshToken(refreshTokenDto.refreshToken)
+
+            if (platform === Platform.WEB) {
+                
+                response.cookie('access_token', tokens.accessToken, {
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: 'lax',
+                    maxAge: 15 * 60 * 1000
+                });
+
+                response.cookie('refresh_token', tokens.refreshToken, {
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: 'lax',
+                    maxAge: 24 * 60 * 60 * 1000
+                });
+
+                return { message: 'Token đã được làm mới' };
             }
-    
-            const refreshToken = authorization.split(' ')[1]
-            return this.authService.refreshToken(refreshToken)
+
+            return {
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken,
+                message: 'Token đã được làm mới'
+            };
         } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
+            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
 
     @Get('email/verify/:email/:token')
     async verifyEmail (@Param('email') email: string ,@Param('token') token: string): Promise<{message: string}>{
         try {
-            const result = await this.authService.verifyEmail(email, token);
+            const user = await this.authService.findUserByEmail(email);
+        
+        if (!user) {
+            throw new HttpException('LOGIN.Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
+        }
 
-            if (result) {
-                return { message: 'Email đã được xác thực thành công' };
-            } else {
+        if (user.isVerified) {
+            throw new HttpException('LOGIN.Tài khoản đã được xác thực', HttpStatus.BAD_REQUEST);
+        }
+
+        const result = await this.authService.verifyEmail(email, token);
+
+        if (result) {
+            return { message: 'Email đã được xác thực thành công' };
+        } else {
                 return { message: 'Xác thực không thành công. Vui lòng kiểm tra mã OTP hoặc thử lại sau' };
             }
         } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
+            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -75,6 +142,16 @@ export class AuthController {
     @Get('email/resend-verification/:email')
     async sendEmailVerification (@Param('email') email: string): Promise<{message: string}> {
         try {
+            const user = await this.authService.findUserByEmail(email);
+        
+            if (!user) {
+                throw new HttpException('LOGIN.Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
+            }
+
+            if (user.isVerified) {
+                throw new HttpException('LOGIN.Tài khoản đã được xác thực', HttpStatus.BAD_REQUEST);
+            }
+
             await this.authService.createEmailToken(email)
             const isEmailSent = await this.authService.sendEmailVerification(email)
 

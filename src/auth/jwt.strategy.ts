@@ -5,6 +5,7 @@ import { PassportStrategy } from "@nestjs/passport";
 import { Strategy, ExtractJwt } from 'passport-jwt'
 import { Model } from "mongoose";
 import { Token } from './schemas/token.schema';
+import { Request } from 'express';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -14,7 +15,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         @InjectModel(Token.name) private readonly tokenModel: Model<Token>
     ) {
         super ({
-            jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+            jwtFromRequest: ExtractJwt.fromExtractors([
+                ExtractJwt.fromAuthHeaderAsBearerToken(),
+                (request: Request) => {
+                    const accessToken = request?.cookies?.access_token;
+                    if (!accessToken) {
+                        return null;
+                    }
+                    return accessToken;
+                },
+            ]),
             secretOrKey: process.env.JWT_SECRET
         })
     }

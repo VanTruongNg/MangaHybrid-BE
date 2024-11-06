@@ -78,50 +78,67 @@ k
             throw new UnauthorizedException("LOGIN.Email hoặc mật khẩu không chính xác!")
         }
 
-        if (!user.isVerified) {
-            throw new HttpException(
-                {
-                    status: HttpStatus.FORBIDDEN,
-                    error: 'Email chưa được xác thực',
-                    code: 'USER.NOT_VERIFIED'
-                },
-                HttpStatus.FORBIDDEN
-            )
-        }
-
         const refreshToken = this.jwtService.sign({ id: user._id, email: user.email, type: 'refresh'},{
             secret: process.env.REFRESH_TOKEN_SECRET,
             expiresIn: process.env.REFRESH_TOKEN_EXPIRES
         })
 
-        await this.refreshTokenModel.create({token: refreshToken, user: user._id})
+        await this.refreshTokenModel.create({
+            token: refreshToken,
+            user: user._id,
+            expiresAt: new Date(Date.now() + 24*60*60*1000)
+        });
 
         const accessToken = this.jwtService.sign({ id: user._id, email: user.email })
 
         return { accessToken, refreshToken }
     }
 
-    async refreshToken (refreshToken: string): Promise<{accessToken: string}>{
-        const tokenDoc: RefreshToken = await this.refreshTokenModel.findOne({ token: refreshToken })
+    async findUserByEmail(email: string): Promise<User> {
+        return await this.userModel.findOne({ email });
+    }
+
+    async refreshToken(refreshToken: string): Promise<{accessToken: string, refreshToken: string}> {
+        const tokenDoc = await this.refreshTokenModel.findOne({ token: refreshToken });
+        
         if (!tokenDoc || tokenDoc.isRevoked) {
-            throw new UnauthorizedException("LOGIN.Refresh Token không hợp lệ hoặc đã bị thu hồi!")
+            throw new UnauthorizedException("LOGIN.Refresh Token không hợp lệ hoặc đã bị thu hồi!");
         }
-
-        const tokenExpires = new Date().getTime() - tokenDoc.createdAt.getTime()
-        const expriedTime = 24 * 60 * 60 * 1000
-
-        if (tokenExpires > expriedTime) {
-            throw new ForbiddenException("LOGIN.Refresh Token đã hết hạn.")
+    
+        if (new Date() > tokenDoc.expiresAt) {
+            throw new ForbiddenException("LOGIN.Refresh Token đã hết hạn.");
         }
-
-        const user = await this.userModel.findById(tokenDoc.user.toString())
-
+    
+        const user = await this.userModel.findById(tokenDoc.user);
         if (!user) {
-            throw new UnauthorizedException("LOGIN.Người dùng không tồn tại")
+            throw new UnauthorizedException("LOGIN.Người dùng không tồn tại");
         }
-
-        const accessToken = await this.jwtService.sign({id: user._id, email: user.email})
-        return { accessToken }
+    
+        const newRefreshToken = this.jwtService.sign(
+            { id: user._id, email: user.email, type: 'refresh' },
+            {
+                secret: process.env.REFRESH_TOKEN_SECRET,
+                expiresIn: process.env.REFRESH_TOKEN_EXPIRES
+            }
+        );
+    
+        const updatedToken = await this.refreshTokenModel.findOneAndUpdate(
+            { token: refreshToken },
+            {
+                token: newRefreshToken,
+                expiresAt: new Date(Date.now() + 24*60*60*1000),
+                $set: { updatedAt: new Date() }
+            },
+            { new: true }
+        );
+    
+        if (!updatedToken) {
+            throw new HttpException('Không thể cập nhật refresh token', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    
+        const accessToken = this.jwtService.sign({id: user._id, email: user.email});
+    
+        return { accessToken, refreshToken: newRefreshToken };
     }
 
     async sendEmailVerification (email: string): Promise<boolean> {

@@ -1,17 +1,17 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 
-@Schema()
+@Schema({ timestamps: true })
 export class EmailVerification {
+    @Prop({ required: true, index: true })
+    email: string;
 
-    @Prop()
-    email: string
-
-    @Prop()
-    emailToken: string
+    @Prop({ required: true })
+    emailToken: string;
 
     @Prop({ required: true, default: Date.now })
-    timestamp: Date
+    timestamp: Date;
 }
 
-export const EmailVerificationSchema = SchemaFactory.createForClass(EmailVerification)
-EmailVerificationSchema.index({ timestamp: 1}, { expireAfterSeconds: 15*60 })
+export const EmailVerificationSchema = SchemaFactory.createForClass(EmailVerification);
+EmailVerificationSchema.index({ timestamp: 1 }, { expireAfterSeconds: 15*60 });
+EmailVerificationSchema.index({ email: 1, emailToken: 1 });
