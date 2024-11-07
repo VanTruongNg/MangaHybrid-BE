@@ -207,4 +207,54 @@ export class UserService {
         await user.save()
         await manga.save()
     }
+
+    async followManga(userId: string, mangaId: string): Promise<void> {
+        const user = await this.userModel.findById(userId);
+        if (!user) {
+            throw new HttpException(`USER.Không tìm thấy User ${userId}`, HttpStatus.NOT_FOUND);
+        }
+    
+        const manga = await this.mangaModel.findById(mangaId);
+        if (!manga) {
+            throw new HttpException(`USER.Manga ${mangaId} không tồn tại`, HttpStatus.NOT_FOUND);
+        }
+    
+        const alreadyFollowed = user.followingManga.some(id => id.toString() === mangaId);
+        if (alreadyFollowed) {
+            throw new HttpException(`USER.Bạn đã theo dõi ${manga.title} trước đây`, HttpStatus.CONFLICT);
+        }
+    
+        user.followingManga.push(manga);
+        manga.followers.push(user);
+    
+        await user.save();
+        await manga.save();
+    }
+
+    async unfollowManga(userId: string, mangaId: string): Promise<void> {
+        const user = await this.userModel.findById(userId);
+        if (!user) {
+            throw new HttpException(`USER.Không tìm thấy User ${userId}`, HttpStatus.NOT_FOUND);
+        }
+
+        const manga = await this.mangaModel.findById(mangaId);
+        if (!manga) {
+            throw new HttpException(`USER.Manga ${mangaId} không tồn tại`, HttpStatus.NOT_FOUND);
+        }
+
+        const followIndex = user.followingManga.findIndex(id => id.toString() === mangaId);
+        if (followIndex === -1) {
+            throw new HttpException(`USER.Bạn chưa theo dõi ${manga.title}`, HttpStatus.CONFLICT);
+        }
+
+        await this.userModel.updateOne(
+            { _id: userId },
+            { $pull: { followingManga: mangaId } }
+        );
+    
+        await this.mangaModel.updateOne(
+            { _id: mangaId },
+            { $pull: { followers: userId } }
+        );
+    }
 }

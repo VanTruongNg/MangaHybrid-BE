@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { User } from "src/auth/schemas/user.schema";
 import { Chapter } from "src/chapters/schemas/chapter.shema";
 import { Genre } from "src/genres/schemas/genre.schema";
@@ -41,8 +41,8 @@ export class Manga {
     @Prop({default: 0})
     view: number;
 
-    @Prop({default:0})
-    followers: number;
+    @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
+    followers: User[]
 
     @Prop({ type: [{type: mongoose.Schema.Types.ObjectId, ref: 'Chapter'}]})
     chapters: Chapter[]

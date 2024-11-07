@@ -101,4 +101,29 @@ export class UserController {
         await this.userService.undislikeManga(user, mangaId);
         return { message: 'Undislike Manga' };
     }
+
+    @Post('/follow-manga/:mangaId')
+    @Auth({ requireVerified: true })
+    @HttpCode(200)
+    async followManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
+        try {
+            const user = req.user._id;
+            await this.userService.followManga(user, mangaId);
+            return { message: 'Theo dõi manga thành công' };
+        } catch (error) {
+            throw error instanceof HttpException ? error : new HttpException(`Lỗi hệ thống`, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Delete('/unfollow-manga/:mangaId') 
+    @Auth({ requireVerified: true })
+    async unfollowManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
+        try {
+            const user = req.user._id;
+            await this.userService.unfollowManga(user, mangaId);
+            return { message: 'Đã hủy theo dõi manga' };
+        } catch (error) {
+            throw error instanceof HttpException ? error : new HttpException(`Lỗi hệ thống`, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
