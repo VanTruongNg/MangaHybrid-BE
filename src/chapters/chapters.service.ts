@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {  ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Manga, ViewLog } from 'src/manga/schemas/manga.schema';
@@ -26,35 +26,40 @@ export class ChaptersService {
     async getChapterById(id: string): Promise<Chapter> {
         return this.chaptersModel.findById(id).populate('manga', 'title').lean()
     }
-
     async createChaptersByManga(mangaId: string, createChapterDTO: CreateChapterDTO, files: Express.Multer.File[], userId: string): Promise<Chapter> {
         const { ...chapterData} = createChapterDTO
-
+    
         const manga = await this.mangaModel.findById(mangaId)
-        if (manga.uploader.toString() !== userId) {
-            throw new ForbiddenException("Bạn không có quyền thêm Chapter cho Manga này")
-        }
+            .populate({
+                path: 'followers',
+                select: '_id'
+            })
+            
         if (!manga) {
             throw new NotFoundException(`Manga có ID: ${mangaId} không tồn tại`)
         }
-
+    
+        if (manga.uploader.toString() !== userId) {
+            throw new ForbiddenException("Bạn không có quyền thêm Chapter cho Manga này")
+        }
+    
         if (manga.approvalStatus !== ApprovalStatus.APPROVED) {
             throw new ConflictException(`'Manga ${mangaId} chưa được phê duyệt.`)
         }
         
         const newChapters = new this.chaptersModel({...chapterData, manga: mangaId})
         const savedChapters = await newChapters.save()
-
+    
         manga.chapters.push(savedChapters)
         await manga.save()
-
+    
         const sanitizedTitle = manga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
         const fileName = `${sanitizedTitle}-Chap-${savedChapters.number}`;
-
+    
         const uploadedUrls = await this.awsService.uploadMultiFile(files, fileName)
         savedChapters.pagesUrl = uploadedUrls
-
-        return await savedChapters.save()
+    
+        return savedChapters;
     }
 
     async updateChaptersInfo(updateInfoDTO: UpdateChaptersInfoDTO, chapterId: string, userId: string): Promise<Chapter> {

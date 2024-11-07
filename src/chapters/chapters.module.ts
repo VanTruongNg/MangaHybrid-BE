@@ -14,7 +14,7 @@ import { UserModule } from 'src/user/user.module';
     AuthModule,
     MangaModule,
     AwsModule,
-    UserModule
+    UserModule,
   ],
   controllers: [ChaptersController],
   providers: [ChaptersService],
