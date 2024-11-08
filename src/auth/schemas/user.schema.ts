@@ -3,6 +3,8 @@ import { Role } from "./role.enum";
 import { Manga } from "src/manga/schemas/manga.schema";
 import mongoose, { Types } from "mongoose";
 import { Chapter } from "src/chapters/schemas/chapter.shema";
+import { Comment } from "src/comment/schema/comment.schema";
+import { Rating } from "src/rating/schema/rating.schema";
 
 @Schema({
  timestamps: true,
@@ -61,6 +63,12 @@ export class User{
         }]
     })
     readingHistory: { manga: Manga, chapter: Chapter, updatedAt: Date }[];
+
+    @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }] })
+    comments: Comment[];
+
+    @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Rating' }] })
+    ratings: Rating[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

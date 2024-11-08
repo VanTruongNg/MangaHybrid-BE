@@ -13,6 +13,9 @@ import { UserService } from './user/user.service';
 import { UserModule } from './user/user.module';
 import { BullModule } from '@nestjs/bullmq';
 import { MessqueueModule } from './messqueue/messqueue.module';
+import { WebsocketModule } from './websocket/websocket.module';
+import { CommentModule } from './comment/comment.module';
+import { RatingModule } from './rating/rating.module';
 
 @Module({
   imports: [
@@ -33,6 +36,9 @@ import { MessqueueModule } from './messqueue/messqueue.module';
       },
     }),
     MessqueueModule,
+    WebsocketModule,
+    CommentModule,
+    RatingModule,
   ],
   controllers: [AppController, UserController],
   providers: [AppService, UserService],
