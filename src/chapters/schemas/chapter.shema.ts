@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import mongoose from "mongoose";
+import { Comment } from "src/comment/schema/comment.schema";
 import { Manga } from "src/manga/schemas/manga.schema";
 
 @Schema({
@@ -29,6 +30,9 @@ export class Chapter {
     get chapterName(): string {
         return `Chap ${this.number}`
     }
+
+    @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }] })
+    comments: Comment[];
 }
 
 export const ChapterSchema = SchemaFactory.createForClass(Chapter)

@@ -4,6 +4,7 @@ import { User } from "src/auth/schemas/user.schema";
 import { Chapter } from "src/chapters/schemas/chapter.shema";
 import { Genre } from "src/genres/schemas/genre.schema";
 import { ApprovalStatus, StatusEnum } from "./status.enum";
+import { Comment } from "src/comment/schema/comment.schema";
 
 @Schema({
     timestamps: true,
@@ -62,6 +63,18 @@ export class Manga {
 
     @Prop()
     rejectReason?: string
+
+    @Prop({ default: 0 })
+    totalRating: number
+
+    @Prop({ default: 0 })
+    ratingCount: number;
+
+    @Prop({ default: 0, min: 0, max: 5 })
+    averageRating: number;
+
+    @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }] })
+    comments: Comment[];
 }
 
 export const MangaSchema = SchemaFactory.createForClass(Manga)
