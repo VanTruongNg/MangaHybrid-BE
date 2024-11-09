@@ -53,9 +53,13 @@ export class CommentService {
             if (!parentComment) {
                 throw new HttpException('COMMENT.PARENT_NOT_FOUND', HttpStatus.NOT_FOUND);
             }
+
+            // Nếu là reply của reply thì lấy comment gốc
+            const rootCommentId = parentComment.parentComment ? parentComment.parentComment : parentComment._id;
+            const rootComment = await this.commentModel.findById(rootCommentId);
             
-            comment.parentComment = parentComment;
-            
+            comment.parentComment = rootComment;
+
             if (replyToUserId) {
                 const replyToUser = await this.userModel.findById(replyToUserId);
                 if (!replyToUser) {
@@ -66,17 +70,20 @@ export class CommentService {
             }
 
             const savedComment = await comment.save();
-
-            parentComment.replies.push(savedComment);
-            await parentComment.save();
+            
+            if (!rootComment.replies) {
+                rootComment.replies = [];
+            }
+            rootComment.replies.push(savedComment);
+            await rootComment.save();
 
             if (targetManga) {
-                targetManga.comments.push(savedComment._id);
+                targetManga.comments.push(savedComment);
                 await targetManga.save();
             }
 
             if (targetChapter) {
-                targetChapter.comments.push(savedComment._id);
+                targetChapter.comments.push(savedComment);
                 await targetChapter.save();
             }
 
@@ -93,12 +100,12 @@ export class CommentService {
         const savedComment = await comment.save();
 
         if (targetManga) {
-            targetManga.comments.push(savedComment._id);
+            targetManga.comments.push(savedComment);
             await targetManga.save();
         }
 
         if (targetChapter) {
-            targetChapter.comments.push(savedComment._id);
+            targetChapter.comments.push(savedComment);
             await targetChapter.save();
         }
 
