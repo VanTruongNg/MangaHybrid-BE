@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import mongoose from "mongoose";
+import mongoose, { Document } from "mongoose";
 import { User } from "src/auth/schemas/user.schema";
 import { Chapter } from "src/chapters/schemas/chapter.shema";
 import { Manga } from "src/manga/schemas/manga.schema";
@@ -7,7 +7,7 @@ import { Manga } from "src/manga/schemas/manga.schema";
 @Schema({
     timestamps: true
 })
-export class Comment {
+export class Comment extends Document {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
     user: User;
 

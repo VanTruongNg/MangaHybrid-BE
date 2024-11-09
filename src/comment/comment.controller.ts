@@ -17,14 +17,10 @@ export class CommentController {
         @Param('mangaId') mangaId: string,
         @Body() createCommentDto: CreateCommentDto
     ): Promise<Comment> {
-        try {
             return await this.commentService.createComment(req.user._id, {
                 ...createCommentDto,
                 mangaId
             });
-        } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
-        }
     }
 
     @Post('chapter/:chapterId')
