@@ -1,4 +1,3 @@
-
 import { ForbiddenException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -11,7 +10,6 @@ import { LoginDTO } from './dto/login.dto';
 import { Token } from './schemas/token.schema';
 import { EmailVerification } from './schemas/email-verification.schema';
 import { ConfigService } from '@nestjs/config';
-import { RefreshToken } from './interface/token.interface';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PasswordReset } from './schemas/password-reset.schema';
@@ -54,14 +52,18 @@ export class AuthService {
 
 
         await this.createEmailToken(savedUser.email)
-        await this.emailQueue.add('sendEmailVerification', { email: savedUser.email }, {
+        await this.emailQueue.add('sendEmailVerification', {
+            email: savedUser.email,
+            type: 'verification',
+            name: savedUser.name
+        }, {
             removeOnComplete: true,
             removeOnFail: true
-        })
+        });
 
         return true
     }
-k
+
     async login (loginDTO: LoginDTO): Promise<{accessToken: string, refreshToken: string}> {
         
         const { email, password } = loginDTO
@@ -203,25 +205,33 @@ k
     }
 
     async createEmailForgottenPasswordToken (email: string): Promise<FogottenPassword> {
+        const user = await this.userModel.findOne({ email });
+        if (!user) {
+            throw new HttpException('LOGIN.Người dùng không tồn tại', HttpStatus.NOT_FOUND);
+        }
+
         const forgottenPassword = await this.passwordResetModel.findOne ({ email: email })  
-        if ( forgottenPassword && (( new Date().getTime() - forgottenPassword.timestamp.getTime()) / 60000 < 2)) {
-            throw new HttpException("RESET_PASSWORD.Email đã được gửi vui lòng chờ 2p trước khi thực hiện lại", HttpStatus.INTERNAL_SERVER_ERROR)
+        if (forgottenPassword && ((new Date().getTime() - forgottenPassword.timestamp.getTime()) / 60000 < 2)) {
+            throw new HttpException(
+                'RESET_PASSWORD.Vui lòng chờ 2 phút trước khi gửi lại mã OTP',
+                HttpStatus.TOO_MANY_REQUESTS
+            );
+        }
+            
+        const forgottenPasswordModel = await this.passwordResetModel.findOneAndUpdate( {
+            email: email
+        }, {
+            email: email,
+            resetToken: ( Math.floor(Math.random() * (900000)) + 100000 ).toString(),
+            timestamp: new Date()
+        }, {
+            upsert: true,
+            new: true
+        })
+        if (forgottenPasswordModel) {
+            return forgottenPasswordModel
         } else {
-            const forgottenPasswordModel = await this.passwordResetModel.findOneAndUpdate( {
-                email: email
-            }, {
-                email: email,
-                resetToken: ( Math.floor(Math.random() * (900000)) + 100000 ).toString(),
-                timestamp: new Date()
-            }, {
-                upsert: true,
-                new: true
-            })
-            if (forgottenPasswordModel) {
-                return forgottenPasswordModel
-            } else {
-                throw new HttpException('RESET_PASSWORD.Tạo Reset Password Token thất bại!', HttpStatus.INTERNAL_SERVER_ERROR)
-            }
+            throw new HttpException('RESET_PASSWORD.Tạo Reset Password Token thất bại!', HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
 
@@ -246,57 +256,73 @@ k
         return await this.passwordResetModel.findOne({ resetToken: token })
     }
 
-    async sendEmailForgottenPassword (email: string): Promise<boolean> {
-        const user = await this.userModel.findOne({ email: email })
+    async sendEmailForgottenPassword(email: string): Promise<boolean> {
+    try {
+        const user = await this.userModel.findOne({ email });
         if (!user) {
-            throw new HttpException('LOGIN.Người dùng không tồn tại', HttpStatus.INTERNAL_SERVER_ERROR)
+            throw new HttpException('LOGIN.Người dùng không tồn tại', HttpStatus.NOT_FOUND);
         }
 
-        const resetToken = await this.createEmailForgottenPasswordToken(email)
+        const resetToken = await this.createEmailForgottenPasswordToken(email);
+        if (!resetToken?.resetToken) {
+            throw new HttpException(
+                'RESET_PASSWORD.Tạo mã OTP thất bại',
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
 
-        if (resetToken && resetToken.resetToken) {
-            const transporter = nodemailer.createTransport({
-                host: this.configService.get<string>('SMTP_HOST'),
-                port: this.configService.get<string>('SMTP_PORT'),
-                secure: this.configService.get<boolean>('SMTP_SECURE'),
-                auth: {
-                    user: this.configService.get<string>('GMAIL_USER'),
-                    pass: this.configService.get<string>('GMAIL_PASSWORD')
-                }
-            })
-
-            const mailOptions = {
-                from: `"MangaHybrid Authentication System" <${this.configService.get<string>('GMAIL_USER')}>`,
-                to: email,
-                subject: 'Reset Password',
-                text: 'Reset Password',
-                html: `Xin chào! <br><br> Bạn đã yêu cầu để reset password <3<br><br> ${resetToken.resetToken}`
+        await this.emailQueue.add('sendEmailVerification', {
+            email,
+            type: 'resetPassword',
+            name: user.name
+        }, {
+            removeOnComplete: true,
+            removeOnFail: true,
+            attempts: 3,
+            backoff: {
+                type: 'exponential',
+                delay: 1000
             }
+        });
 
-            const sent = await new Promise<boolean>((resolve, reject) => {
-                transporter.sendMail(mailOptions, ( error ) => {
-                    if (error) {
-                        return reject(false)
-                    }
-                    resolve(true)
-                })
-            })
-            return sent
-        } else {
-            throw new HttpException('REGISTRATION.Người dùng chưa được đăng ký!', HttpStatus.FORBIDDEN)
+        return true;
+    } catch (error) {
+        console.error('Error in sendEmailForgottenPassword:', error);
+        throw error instanceof HttpException 
+            ? error 
+            : new HttpException(
+                'RESET_PASSWORD.Không thể gửi email reset password',
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
         }
     }
 
-    async setPassword (email: string, newPassword: string): Promise<boolean> {
-        const user = await this.userModel.findOne({ email: email })
-        if (!user) {
-            throw new HttpException('LOGIN.User không tồn tại', HttpStatus.NOT_FOUND)
+    async verifyResetToken(resetToken: string): Promise<boolean> {
+        const forgottenPassword = await this.passwordResetModel.findOne({ resetToken });
+        
+        if (!forgottenPassword) {
+            throw new HttpException('RESET_PASSWORD.Mã OTP không hợp lệ hoặc đã hết hạn', HttpStatus.BAD_REQUEST);
         }
-
-        user.password = await bcrypt.hash(newPassword, 10)
-
-        await user.save()
-        return true
-    }
     
+        return true;
+    }
+
+    async setPassword(email: string, newPassword: string): Promise<boolean> {
+        const user = await this.userModel.findOne({ email });
+        if (!user) {
+            throw new HttpException('LOGIN.User không tồn tại', HttpStatus.NOT_FOUND);
+        }
+
+        const isMatchOldPassword = await bcrypt.compare(newPassword, user.password);
+        if (isMatchOldPassword) {
+            throw new HttpException(
+                'RESET_PASSWORD.Mật khẩu mới không được trùng với mật khẩu cũ',
+                HttpStatus.BAD_REQUEST
+            );
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+        return true;
+    }
 }

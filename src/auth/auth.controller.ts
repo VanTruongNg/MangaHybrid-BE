@@ -2,7 +2,7 @@ import { AuthService } from './auth.service';
 import { Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, HttpCode, Res } from '@nestjs/common';
 import { SignUpDTO } from './dto/signup.dto';
 import { LoginDTO } from './dto/login.dto';
-import { ResetPassworDTO } from './dto/reset-password.dto';
+import { ResetPasswordDTO, VerifyOtpDTO } from './dto/reset-password.dto';
 import { Platform } from 'src/utils/platform';
 import { Response } from 'express';
 import { RefreshTokenDTO } from './dto/refreshToken.dto';
@@ -126,7 +126,7 @@ export class AuthController {
     }
 
     @Get('email/forgot-password/:email')
-    async sendEmailResetToken (@Param() params): Promise<{message: string}> {
+    async sendEmailResetPassword (@Param() params): Promise<{message: string}> {
         try {
             const isEmailSent = await this.authService.sendEmailForgottenPassword(params.email)
             if (isEmailSent) {
@@ -165,19 +165,44 @@ export class AuthController {
         } 
     }
 
+    @Post('/email/verify-reset-token')
+    @HttpCode(HttpStatus.OK)
+    async verifyResetToken(@Body() verifyOtp: VerifyOtpDTO): Promise<{message: string}> {
+        try {
+            await this.authService.verifyResetToken(verifyOtp.resetToken);
+            return { message: 'RESET_PASSWORD.Mã OTP hợp lệ' };
+        } catch (error) {
+            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @Post('/email/reset-password')
     @HttpCode(HttpStatus.OK)
-    async resetPassword (@Body() resetPassword: ResetPassworDTO): Promise<{message: string}> {
+    async resetPassword(@Body() resetPassword: ResetPasswordDTO): Promise<{message: string}> {
         try {
-            const forgottendPassword = await this.authService.getForgotPassword(resetPassword.resetToken)
-            const isPasswordChanged = await this.authService.setPassword(forgottendPassword.email, resetPassword.password) 
-            if (isPasswordChanged) {
-                return { message: 'RESET_PASSWORD.Mật khẩu đã được thay đổi' }
-            } else {
-                return { message: 'RESET_PASSWORD.Thay đổi mật khẩu thất bại' }
+            if (resetPassword.password !== resetPassword.confirmPassword) {
+                throw new HttpException(
+                    'RESET_PASSWORD.Mật khẩu mới và mật khẩu xác nhận phải giống nhau!',
+                    HttpStatus.BAD_REQUEST
+                );
             }
+            
+            const forgottenPassword = await this.authService.getForgotPassword(resetPassword.resetToken);
+            
+            if (!forgottenPassword) {
+                throw new HttpException('RESET_PASSWORD.Mã OTP không hợp lệ hoặc đã hết hạn', HttpStatus.BAD_REQUEST);
+            }
+
+            const isPasswordChanged = await this.authService.setPassword(forgottenPassword.email, resetPassword.password);
+            
+            if (isPasswordChanged) {
+                await forgottenPassword.deleteOne();
+                return { message: 'RESET_PASSWORD.Mật khẩu đã được thay đổi thành công' };
+            }
+            
+            return { message: 'RESET_PASSWORD.Thay đổi mật khẩu thất bại' };
         } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
+            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }

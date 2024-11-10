@@ -1,4 +1,3 @@
-import { JwtStrategy } from './jwt.strategy';
 import { Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -12,6 +11,9 @@ import { EmailVerificationSchema } from './schemas/email-verification.schema';
 import { MessqueueModule } from 'src/messqueue/messqueue.module';
 import { PasswordResetSchema } from './schemas/password-reset.schema';
 import { Reflector } from '@nestjs/core';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { WsStrategy } from './strategies/ws.strategy';
+import { WsAuthGuard } from './guards/ws-auth.guard';
 
 @Module({
   imports:[
@@ -36,7 +38,16 @@ import { Reflector } from '@nestjs/core';
     MessqueueModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, Reflector],
-  exports: [JwtStrategy, PassportModule, MongooseModule]
+  providers: [AuthService, 
+    JwtStrategy,
+    WsStrategy,
+    WsAuthGuard,
+    Reflector],
+  exports: [
+    JwtStrategy,
+    WsStrategy,
+    WsAuthGuard,
+    PassportModule,
+    MongooseModule]
 })
 export class AuthModule {}
