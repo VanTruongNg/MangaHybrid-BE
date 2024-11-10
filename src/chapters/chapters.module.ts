@@ -7,6 +7,8 @@ import { ChapterSchema } from './schemas/chapter.shema';
 import { AuthModule } from 'src/auth/auth.module';
 import { AwsModule } from 'src/aws/aws.module';
 import { UserModule } from 'src/user/user.module';
+import { WebsocketModule } from 'src/websocket/websocket.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { UserModule } from 'src/user/user.module';
     MangaModule,
     AwsModule,
     UserModule,
+    NotificationModule,
+    WebsocketModule
   ],
   controllers: [ChaptersController],
   providers: [ChaptersService],

@@ -1,15 +1,22 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from "class-validator";
+import { IsNotEmpty, IsString, MinLength } from "class-validator";
 
-export class ResetPassworDTO {
+export class ResetPasswordDTO {
     @IsNotEmpty()
-    @IsEmail({}, {message: "Nhập email chính xác!"})
-    readonly email: string;
-
-    @IsNotEmpty()
-    readonly resetToken: string
+    @IsString()
+    readonly resetToken: string;
 
     @IsNotEmpty()
     @IsString()
-    @MinLength(6)
+    @MinLength(6, { message: "Mật khẩu phải có ít nhất 6 ký tự" })
     readonly password: string;
+
+    @IsNotEmpty()
+    @IsString()
+    readonly confirmPassword: string;
+}
+
+export class VerifyOtpDTO {
+    @IsNotEmpty({ message: "Mã OTP không được để trống" })
+    @IsString()
+    readonly resetToken: string;
 }

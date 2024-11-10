@@ -13,5 +13,5 @@ export class PasswordReset {
 }
 
 export const PasswordResetSchema = SchemaFactory.createForClass(PasswordReset);
-PasswordResetSchema.index({ timestamp: 1 }, { expireAfterSeconds: 15*60 });
+PasswordResetSchema.index({ timestamp: 1 }, { expireAfterSeconds: 15 * 60 });
 PasswordResetSchema.index({ email: 1, resetToken: 1 });

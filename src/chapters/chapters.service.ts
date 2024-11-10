@@ -1,6 +1,6 @@
 import {  ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import mongoose, { Model } from 'mongoose';
 import { Manga, ViewLog } from 'src/manga/schemas/manga.schema';
 import { CreateChapterDTO } from './dto/create-chapter.dto';
 import { AwsService } from 'src/aws/aws.service';
@@ -8,6 +8,12 @@ import { Chapter } from './schemas/chapter.shema';
 import { UpdateChaptersInfoDTO } from './dto/update-info.dto';
 import { User } from 'src/auth/schemas/user.schema';
 import { ApprovalStatus } from 'src/manga/schemas/status.enum';
+import { NotificationType } from 'src/notification/schema/notification.schema';
+import { NotificationService } from 'src/notification/notification.service';
+
+interface PopulatedFollower {
+    _id: mongoose.Types.ObjectId;
+}
 
 @Injectable()
 export class ChaptersService {
@@ -16,7 +22,8 @@ export class ChaptersService {
         @InjectModel(Chapter.name) private readonly chaptersModel: Model<Chapter>,
         @InjectModel(User.name) private readonly userModel: Model<User>,
         @InjectModel(ViewLog.name) private readonly viewLogModel: Model<ViewLog>,
-        private readonly awsService: AwsService
+        private readonly awsService: AwsService,
+        private readonly notificationService: NotificationService,
     ) {}
 
     async getAll(): Promise<Chapter[]> {
@@ -30,10 +37,10 @@ export class ChaptersService {
         const { ...chapterData} = createChapterDTO
     
         const manga = await this.mangaModel.findById(mangaId)
-            .populate({
+            .populate<{ followers: PopulatedFollower[] }>({
                 path: 'followers',
                 select: '_id'
-            })
+            });
             
         if (!manga) {
             throw new NotFoundException(`Manga có ID: ${mangaId} không tồn tại`)
@@ -58,8 +65,16 @@ export class ChaptersService {
     
         const uploadedUrls = await this.awsService.uploadMultiFile(files, fileName)
         savedChapters.pagesUrl = uploadedUrls
+
+        await this.notificationService.createNotification({
+            type: NotificationType.NEW_CHAPTER,
+            message: `Chapter ${savedChapters.number} của manga ${manga.title} vừa được cập nhật!`,
+            recipients: manga.followers.map(follower => follower._id),
+            manga: manga._id,
+            chapter: savedChapters._id
+        });
     
-        return savedChapters;
+        return await savedChapters.save();
     }
 
     async updateChaptersInfo(updateInfoDTO: UpdateChaptersInfoDTO, chapterId: string, userId: string): Promise<Chapter> {

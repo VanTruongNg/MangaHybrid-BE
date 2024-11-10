@@ -13,5 +13,5 @@ export class EmailVerification {
 }
 
 export const EmailVerificationSchema = SchemaFactory.createForClass(EmailVerification);
-EmailVerificationSchema.index({ timestamp: 1 }, { expireAfterSeconds: 15*60 });
+EmailVerificationSchema.index({ timestamp: 1 }, { expireAfterSeconds: 15 * 60 });
 EmailVerificationSchema.index({ email: 1, emailToken: 1 });

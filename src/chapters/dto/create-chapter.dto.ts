@@ -1,10 +1,10 @@
-import { IsNotEmpty, IsNumber, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CreateChapterDTO {
     @IsNotEmpty()
     readonly number: number
 
-    @IsNotEmpty()
+    @IsOptional()
     @IsString()
-    readonly chapterTitle: string
+    readonly chapterTitle?: string
 }

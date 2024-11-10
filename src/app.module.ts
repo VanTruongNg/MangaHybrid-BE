@@ -16,6 +16,7 @@ import { MessqueueModule } from './messqueue/messqueue.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { CommentModule } from './comment/comment.module';
 import { RatingModule } from './rating/rating.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { RatingModule } from './rating/rating.module';
     WebsocketModule,
     CommentModule,
     RatingModule,
+    NotificationModule,
   ],
   controllers: [AppController, UserController],
   providers: [AppService, UserService],

@@ -14,7 +14,7 @@ export class Chapter {
     pagesUrl: string[]
 
     @Prop()
-    chapterTitle: string
+    chapterTitle?: string
 
     @Prop()
     views: number
