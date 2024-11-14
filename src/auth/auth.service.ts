@@ -10,8 +10,8 @@ import { LoginDTO } from './dto/login.dto';
 import { Token } from './schemas/token.schema';
 import { EmailVerification } from './schemas/email-verification.schema';
 import { ConfigService } from '@nestjs/config';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { PasswordReset } from './schemas/password-reset.schema';
 import { FogottenPassword } from './interface/resetpassword.interface';
 
@@ -27,41 +27,60 @@ export class AuthService {
         @InjectModel(PasswordReset.name)
         private readonly passwordResetModel: Model<PasswordReset>,
         private readonly jwtService: JwtService,
-        private configService: ConfigService,
         @InjectQueue('email') private readonly emailQueue: Queue,
     ){}
 
-    async signUp (signUpDTO: SignUpDTO): Promise<boolean> {
-        const {name, email, password, confirmPassword} = signUpDTO
-
+    async signUp(signUpDTO: SignUpDTO): Promise<boolean> {
+        const { name, email, password, confirmPassword } = signUpDTO;
+    
         if (password !== confirmPassword) {
-            throw new UnauthorizedException('REGISTRATION.Mật khẩu không trùng khớp!')
+            throw new UnauthorizedException('REGISTRATION.Mật khẩu không trùng khớp!');
         }
-
-        const hashedPassword = await bcrypt.hash(password, 10)
-
-        const savedUser = await this.userModel.create({
-            name, 
+    
+        const existingUser = await this.userModel.findOne({ email });
+        if (existingUser) {
+            throw new HttpException('REGISTRATION.Email đã được sử dụng!', HttpStatus.CONFLICT);
+        }
+    
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        const user = await this.userModel.create({
+            name,
             email,
             password: hashedPassword,
-        })
-
-        if (!savedUser) {
-            throw new HttpException ("REGISTRATION.Tạo tài khoản không thành công", HttpStatus.NOT_ACCEPTABLE)
-        }
-
-
-        await this.createEmailToken(savedUser.email)
-        await this.emailQueue.add('sendEmailVerification', {
-            email: savedUser.email,
-            type: 'verification',
-            name: savedUser.name
-        }, {
-            removeOnComplete: true,
-            removeOnFail: true
         });
-
-        return true
+    
+        if (!user) {
+            throw new HttpException("REGISTRATION.Tạo tài khoản không thành công", HttpStatus.NOT_ACCEPTABLE);
+        }
+    
+        const emailToken = await this.createEmailToken(email);
+        if (!emailToken) {
+            await user.deleteOne();
+            throw new HttpException('REGISTRATION.Tạo mã xác thực thất bại', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    
+        try {
+            await this.emailQueue.add('sendEmailVerification', {
+                email,
+                type: 'verification',
+                name
+            }, {
+                removeOnComplete: true,
+                removeOnFail: true,
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 1000
+                }
+            });
+            
+            return true;
+        } catch (error) {
+            await user.deleteOne();
+            await this.emailVerificationModel.findOneAndDelete({ email });
+            throw new HttpException('REGISTRATION.Gửi email xác thực thất bại', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     async login (loginDTO: LoginDTO): Promise<{accessToken: string, refreshToken: string}> {
@@ -143,39 +162,32 @@ export class AuthService {
         return { accessToken, refreshToken: newRefreshToken };
     }
 
-    async sendEmailVerification (email: string): Promise<boolean> {
-        const existedEmail = await this.emailVerificationModel.findOne ({ email: email })
-
+    async sendEmailVerification(email: string): Promise<boolean> {
+        const existedEmail = await this.emailVerificationModel.findOne({ email: email });
+    
         if (existedEmail && existedEmail.emailToken) {
-            const transporter = nodemailer.createTransport({
-                host: this.configService.get<string>('SMTP_HOST'),
-                port: this.configService.get<string>('SMTP_PORT'),
-                secure: this.configService.get<boolean>('SMTP_SECURE'),
-                auth: {
-                    user: this.configService.get<string>('GMAIL_USER'),
-                    pass: this.configService.get<string>('GMAIL_PASSWORD')
-                }
-            })
-
-            const mailOptions = {
-                from: `"MangaHybrid Authentication System" <${this.configService.get<string>('GMAIL_USER')}>`,
-                to: email,
-                subject: 'Verify Email',
-                text: 'Verify Email',
-                html: `Xin chào! <br><br> Cảm ơn bạn đã đăng ký tài khoản <3<br><br> ${existedEmail.emailToken}`
+            const user = await this.userModel.findOne({ email });
+            if (!user) {
+                throw new HttpException('LOGIN.Không tìm thấy User', HttpStatus.NOT_FOUND);
             }
-
-            const sent = await new Promise<boolean>((resolve, reject) => {
-                transporter.sendMail(mailOptions, ( error ) => {
-                    if (error) {
-                        return reject(false)
-                    }
-                    resolve(true)
-                })
-            })
-            return sent
+    
+            await this.emailQueue.add('sendEmailVerification', {
+                email,
+                type: 'verification',
+                name: user.name
+            }, {
+                removeOnComplete: true,
+                removeOnFail: true,
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 1000
+                }
+            });
+    
+            return true;
         } else {
-            throw new HttpException('LOGIN.Tài khoản chưa được đăng ký!', HttpStatus.FORBIDDEN)
+            throw new HttpException('LOGIN.Tài khoản chưa được đăng ký!', HttpStatus.FORBIDDEN);
         }
     }
 

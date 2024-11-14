@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { ChapterType } from "../schemas/chapter.shema";
 
 export class CreateChapterDTO {
     @IsNotEmpty()
@@ -7,4 +8,6 @@ export class CreateChapterDTO {
     @IsOptional()
     @IsString()
     readonly chapterTitle?: string
+
+    chapterType?: ChapterType
 }

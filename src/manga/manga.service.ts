@@ -23,47 +23,102 @@ export class MangaService {
     }
 
     async findById(id: string): Promise<Manga> {
-        const manga = await this.mangaModel.findById(id).populate('genre', 'name')
-                                                        .populate({ path: 'uploader', select: 'name avatarUrl'})
-                                                        .populate({ path: 'chapters', select: 'chapterName chapterTitle views number', options: { sort: { number: 1 }}})
+        const manga = await this.mangaModel.findById(id)
+            .select({
+                _id: 1,
+                title: 1,
+                description: 1, 
+                author: 1,
+                coverImg: 1,
+                bannerImg: 1,
+                status: 1,
+                view: 1,
+                rating: 1,
+                ratingCount: 1
+            })
+            .populate('genre', '_id name')
+            .populate('uploader', '_id name avatarUrl')
+            .populate({
+                path: 'chapters',
+                select: '_id number chapterTitle chapterName chapterType views createdAt',
+                options: { 
+                    sort: { 
+                        number: -1,
+                        createdAt: -1
+                    },
+                    limit: 100
+                }
+            });
+    
         if (!manga) {
-            throw new NotFoundException(`Không tồn tại Manga có ID: ${id}`)
+            throw new NotFoundException(`Không tồn tại Manga có ID: ${id}`);
         }
-
-        return manga    
+    
+        return manga;
     }
 
     async findTopMangaByViewsToday(): Promise<Manga[]> {
         const today = new Date()
         today.setUTCHours(0,0,0,0)
-
-        const viewLogs = await this.viewLogModel.find({
-            date: today
-        }).sort({
-            views: -1
-        }).populate('manga').lean()
-
+    
+        const viewLogs = await this.viewLogModel.aggregate([
+            {
+                $match: {
+                    date: today
+                }
+            },
+            {
+                $sort: { views: -1 }
+            },
+            {
+                $limit: 10
+            },
+            {
+                $lookup: {
+                    from: 'mangas',
+                    localField: 'manga',
+                    foreignField: '_id',
+                    as: 'mangaDetails'
+                }
+            },
+            {
+                $unwind: '$mangaDetails'
+            },
+            {
+                $project: {
+                    _id: '$mangaDetails._id',
+                    title: '$mangaDetails.title',
+                    coverImg: '$mangaDetails.coverImg',
+                    bannerImg: '$mangaDetails.bannerImg',
+                    author: '$mangaDetails.author',
+                    rating: '$mangaDetails.rating',
+                    view: '$mangaDetails.view',
+                    viewToday: '$views'
+                }
+            }
+        ]);
+    
         if (!viewLogs.length) {
-            return await this.mangaModel.find().sort({ view: -1 })
+            return await this.mangaModel.find({ approvalStatus: ApprovalStatus.APPROVED })
+                .select('_id title coverImg bannerImg author rating view')
+                .sort({ view: -1 })
+                .limit(10)
+                .lean();
         }
-
-        return viewLogs.map(log => log.manga)
+    
+        return viewLogs;
     }
 
     async findTopMangaByViewsThisWeek(): Promise<Manga[]> {
         const now = new Date()
-
         const startOfWeek = new Date(now)
-        const dayOfWeek = startOfWeek.getUTCDay()
-
-        const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek
-        startOfWeek.setUTCDate(startOfWeek.getUTCDate() + diffToMonday)
+        startOfWeek.setUTCDate(now.getUTCDate() - now.getUTCDay())
         startOfWeek.setUTCHours(0,0,0,0)
-
+    
         const endOfWeek = new Date(startOfWeek)
         endOfWeek.setUTCDate(startOfWeek.getUTCDate() + 6)
         endOfWeek.setUTCHours(23,59,59,999)
-
+    
         const viewLogs = await this.viewLogModel.aggregate([
             {
                 $match: {
@@ -73,13 +128,11 @@ export class MangaService {
             {
                 $group: {
                     _id: '$manga',
-                    totalViews: { $sum: "$views" }
+                    viewThisWeek: { $sum: '$views' }
                 }
             },
             {
-                $sort: {
-                    totalViews: -1
-                }
+                $sort: { viewThisWeek: -1 }
             },
             {
                 $limit: 10
@@ -96,16 +149,97 @@ export class MangaService {
                 $unwind: '$mangaDetails'
             },
             {
-                $replaceRoot: {
-                    newRoot: '$mangaDetails'
+                $project: {
+                    _id: '$mangaDetails._id',
+                    title: '$mangaDetails.title',
+                    coverImg: '$mangaDetails.coverImg',
+                    bannerImg: '$mangaDetails.bannerImg',
+                    author: '$mangaDetails.author',
+                    rating: '$mangaDetails.rating',
+                    view: '$mangaDetails.view',
+                    viewThisWeek: 1
                 }
             }
-        ])
+        ]);
+    
+        if (!viewLogs.length) {
+            return await this.mangaModel.find({ approvalStatus: ApprovalStatus.APPROVED })
+                .select('_id title coverImg bannerImg author rating view')
+                .sort({ view: -1 })
+                .limit(10)
+                .lean();
+        }
+    
+        return viewLogs;
+    }
 
-        return viewLogs
+    async findRecentlyUpdated(): Promise<Manga[]> {
+        return this.mangaModel.aggregate([
+            {
+                $match: { 
+                    approvalStatus: ApprovalStatus.APPROVED,
+                    chapters: { $exists: true, $ne: [] }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'chapters',
+                    localField: 'chapters',
+                    foreignField: '_id',
+                    as: 'chapterDetails'
+                }
+            },
+            {
+                $addFields: {
+                    latestChapter: { $max: '$chapterDetails.createdAt' }
+                }
+            },
+            {
+                $sort: { latestChapter: -1 }
+            },
+            {
+                $limit: 10
+            },
+            {
+                $project: {
+                    _id: 1,
+                    title: 1,
+                    coverImg: 1,
+                    bannerImg: 1,
+                    author: 1,
+                    rating: 1,
+                    view: 1,
+                    latestUpdate: '$latestChapter'
+                }
+            }
+        ]);
+    }
+
+    async findRandomManga(): Promise<Manga[]> {
+        return this.mangaModel.aggregate([
+            {
+                $match: { 
+                    approvalStatus: ApprovalStatus.APPROVED 
+                }
+            },
+            { 
+                $sample: { size: 10 } 
+            },
+            {
+                $project: {
+                    _id: 1,
+                    title: 1,
+                    coverImg: 1,
+                    bannerImg: 1,
+                    author: 1,
+                    rating: 1,
+                    view: 1
+                }
+            }
+        ]);
     }
     
-    async createManga (uploader: string, createMangaDTO: CreateMangaDTO, file: Express.Multer.File): Promise<Manga> {
+    async createManga(uploader: string, createMangaDTO: CreateMangaDTO, files: { cover: Express.Multer.File, banner: Express.Multer.File }): Promise<Manga> {
         const { genre, ...mangaData } = createMangaDTO
 
         if (genre && genre.length > 0 ) {
@@ -135,14 +269,19 @@ export class MangaService {
         }
         
         user.uploadedManga.push(savedManga)
-
         await user.save()
 
         const sanitizedTitle = savedManga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
-        const fileName = `${savedManga._id.toString()}-${sanitizedTitle}`
+        
         try {
-            const coverImgUrl = await this.awsService.uploadFile(file, fileName)
+            const coverFileName = `cover-${savedManga._id.toString()}-${sanitizedTitle}`
+            const coverImgUrl = await this.awsService.uploadFile(files.cover, coverFileName)
             savedManga.coverImg = coverImgUrl
+
+            const bannerFileName = `banner-${savedManga._id.toString()}-${sanitizedTitle}`
+            const bannerImgUrl = await this.awsService.uploadFile(files.banner, bannerFileName)
+            savedManga.bannerImg = bannerImgUrl
+
             return await savedManga.save()
         } catch (error) {
             throw new InternalServerErrorException(`Upload file thất bại: ${error.message}`)
@@ -216,6 +355,28 @@ export class MangaService {
         const coverImg = await this.awsService.uploadFile(file, fileName)
 
         manga.coverImg = coverImg
+        return await manga.save()
+    }
+
+    async updateBannerImg(mangaId: string, file: Express.Multer.File, userId: string): Promise<Manga> {
+        const manga = await this.mangaModel.findById(mangaId)
+        
+        if (!manga) {
+            throw new NotFoundException(`Manga với ID: ${mangaId} không tồn tại`)
+        }
+        if (manga.uploader.toString() !== userId.toString()) {
+            throw new ForbiddenException('Bạn không phải là người upload Manga này!')
+        }
+        if (manga.approvalStatus !== ApprovalStatus.APPROVED) {
+            throw new ConflictException(`Manga ${mangaId} chưa được duyệt`)
+        }
+
+        const sanitizedTitle = manga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
+        const fileName = `banner-${manga._id.toString()}-${sanitizedTitle}`
+
+        const bannerImg = await this.awsService.uploadFile(file, fileName)
+
+        manga.bannerImg = bannerImg
         return await manga.save()
     }
 }

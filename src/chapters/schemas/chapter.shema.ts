@@ -3,6 +3,12 @@ import mongoose from "mongoose";
 import { Comment } from "src/comment/schema/comment.schema";
 import { Manga } from "src/manga/schemas/manga.schema";
 
+export enum ChapterType {
+    NORMAL = 'normal',
+    SPECIAL = 'special',
+    ONESHOT = 'oneshot'
+}
+
 @Schema({
     timestamps: true
 })
@@ -22,14 +28,22 @@ export class Chapter {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Manga' })
     manga: Manga
 
-    @Prop({ default: function(this: Chapter)
-        {
-            return `Chap ${this.number}`
+    @Prop({ type: String, enum: ChapterType, default: ChapterType.NORMAL })
+    chapterType: ChapterType;
+
+    @Prop({
+        default: function(this: Chapter) {
+            switch (this.chapterType) {
+                case ChapterType.SPECIAL:
+                    return `Chapter Đặc Biệt${this.chapterTitle ? ': ' + this.chapterTitle : ''}`;
+                case ChapterType.ONESHOT:
+                    return 'OneShot';
+                default:
+                    return `Chap ${this.number}${this.chapterTitle ? ': ' + this.chapterTitle : ''}`;
+            }
         }
     })
-    get chapterName(): string {
-        return `Chap ${this.number}`
-    }
+    chapterName: string;
 
     @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }] })
     comments: Comment[];

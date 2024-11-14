@@ -48,6 +48,7 @@ import { WsAuthGuard } from './guards/ws-auth.guard';
     WsStrategy,
     WsAuthGuard,
     PassportModule,
-    MongooseModule]
+    MongooseModule
+  ]
 })
 export class AuthModule {}

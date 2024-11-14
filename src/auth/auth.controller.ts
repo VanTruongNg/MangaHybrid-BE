@@ -6,12 +6,14 @@ import { ResetPasswordDTO, VerifyOtpDTO } from './dto/reset-password.dto';
 import { Platform } from 'src/utils/platform';
 import { Response } from 'express';
 import { RefreshTokenDTO } from './dto/refreshToken.dto';
-
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 @Controller('auth')
+@ApiTags('Auth')
 export class AuthController {
     constructor ( private authService: AuthService) {}
 
     @Post('/signup')
+    @ApiOperation({ summary: 'Đăng ký tài khoản' })
     async signUp (@Body() signUpDTO: SignUpDTO): Promise<{message: string}> {
         try {
             const result = await this.authService.signUp(signUpDTO)
@@ -24,6 +26,7 @@ export class AuthController {
     }
 
     @Post('/login')
+    @ApiOperation({ summary: 'Đăng nhập tài khoản' })
     async login (
         @Body() loginDTO: LoginDTO, 
         @Headers('x-platform') platform: Platform, 
@@ -62,6 +65,7 @@ export class AuthController {
     }
 
     @Post('/refresh-token')
+    @ApiOperation({ summary: 'Làm mới token' })
     async refreshToken(
         @Headers('x-platform') platform: Platform,
         @Body() refreshTokenDto: RefreshTokenDTO,
@@ -101,23 +105,24 @@ export class AuthController {
 
 
     @Get('email/verify/:email/:token')
+    @ApiOperation({ summary: 'Xác thực email' })
     async verifyEmail (@Param('email') email: string ,@Param('token') token: string): Promise<{message: string}>{
         try {
             const user = await this.authService.findUserByEmail(email);
         
-        if (!user) {
-            throw new HttpException('LOGIN.Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
-        }
+            if (!user) {
+                throw new HttpException('LOGIN.Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
+            }
 
-        if (user.isVerified) {
-            throw new HttpException('LOGIN.Tài khoản đã được xác thực', HttpStatus.BAD_REQUEST);
-        }
+            if (user.isVerified) {
+                throw new HttpException('LOGIN.Tài khoản đã được xác thực', HttpStatus.BAD_REQUEST);
+            }
 
-        const result = await this.authService.verifyEmail(email, token);
+            const result = await this.authService.verifyEmail(email, token);
 
-        if (result) {
-            return { message: 'Email đã được xác thực thành công' };
-        } else {
+            if (result) {
+                return { message: 'Email đã được xác thực thành công' };
+            } else {
                 return { message: 'Xác thực không thành công. Vui lòng kiểm tra mã OTP hoặc thử lại sau' };
             }
         } catch (error) {
@@ -126,6 +131,7 @@ export class AuthController {
     }
 
     @Get('email/forgot-password/:email')
+    @ApiOperation({ summary: 'Gửi mã xác thực reset password' })
     async sendEmailResetPassword (@Param() params): Promise<{message: string}> {
         try {
             const isEmailSent = await this.authService.sendEmailForgottenPassword(params.email)
@@ -140,6 +146,7 @@ export class AuthController {
     }
 
     @Get('email/resend-verification/:email')
+    @ApiOperation({ summary: 'Gửi lại mã xác thực email' })
     async sendEmailVerification (@Param('email') email: string): Promise<{message: string}> {
         try {
             const user = await this.authService.findUserByEmail(email);
@@ -167,6 +174,7 @@ export class AuthController {
 
     @Post('/email/verify-reset-token')
     @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Xác thực mã OTP reset password' })
     async verifyResetToken(@Body() verifyOtp: VerifyOtpDTO): Promise<{message: string}> {
         try {
             await this.authService.verifyResetToken(verifyOtp.resetToken);
@@ -178,7 +186,8 @@ export class AuthController {
 
     @Post('/email/reset-password')
     @HttpCode(HttpStatus.OK)
-    async resetPassword(@Body() resetPassword: ResetPasswordDTO): Promise<{message: string}> {
+    @ApiOperation({ summary: 'Reset password' })
+        async resetPassword(@Body() resetPassword: ResetPasswordDTO): Promise<{message: string}> {
         try {
             if (resetPassword.password !== resetPassword.confirmPassword) {
                 throw new HttpException(

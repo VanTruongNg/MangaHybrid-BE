@@ -1,13 +1,14 @@
-import { Controller, Get, NotFoundException, Param, Patch, Post, Req, UseGuards, UseInterceptors, UploadedFile, Body, Delete, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Patch, Post, Req, UseInterceptors, UploadedFile, Body, Delete, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from 'src/auth/schemas/user.schema';
-import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ResetPassworDTO } from './dto/reset-password.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
-import { Role } from 'src/auth/schemas/role.enum';
+import { Role } from 'src/auth/schemas/role.enum';  
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
-@Controller('user')
+@ApiTags('User')
+@Controller('user') 
 export class UserController {
     constructor(
         readonly userService: UserService
@@ -15,12 +16,14 @@ export class UserController {
 
     @Get()
     @Auth({ roles:[Role.ADMIN], requireVerified: true })
+    @ApiOperation({ summary: 'Lấy tất cả người dùng' })
     async getAllUser(): Promise<User[]> {
         return this.userService.getAllUsers();
     }
 
     @Get('/me')
     @Auth()
+    @ApiOperation({ summary: 'Lấy thông tin người dùng' })
     async getUserById(@Req() req: any): Promise<User> {
         const userId = req.user._id
         return this.userService.findById(userId)
@@ -28,6 +31,7 @@ export class UserController {
 
     @Post('/follow/:id')
     @Auth({ requireVerified: true })
+    @ApiOperation({ summary: 'Theo dõi người dùng' })
     async followUser (@Req() req: any, @Param('id') followUserId: string) {
         const userId = req.user._id
 
@@ -41,6 +45,7 @@ export class UserController {
 
     @Patch('/update-avatar')
     @Auth({ requireVerified: true })
+    @ApiOperation({ summary: 'Cập nhật ảnh đại diện' })
     @UseInterceptors(FileInterceptor('file'))
     async updateAvatar (@Req() req: any, @UploadedFile() file: Express.Multer.File): Promise<User> {
         const userId = req.user._id
@@ -50,6 +55,7 @@ export class UserController {
 
     @Patch('/reset-password')
     @Auth({ requireVerified: true })
+    @ApiOperation({ summary: 'Reset password' })
     async resetPassword (@Req() req: any, @Body() resetPassworDTO: ResetPassworDTO): Promise<{ message: string }>{
         const email = req.user.email
         await this.userService.changePassword(email, resetPassworDTO) 
@@ -59,6 +65,7 @@ export class UserController {
     @Post('/like-manga/:mangaId')
     @Auth({ requireVerified: true })
     @HttpCode(200)
+    @ApiOperation({ summary: 'Thích manga' })
     async likeManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
         try {
             const user = req.user._id;
@@ -71,6 +78,7 @@ export class UserController {
 
     @Delete('/unlike-manga/:mangaId')
     @Auth({ requireVerified: true })
+    @ApiOperation({ summary: 'Ngừng thích manga' })
     async unlikeManga (@Req() req: any, @Param('mangaId') mangaId: string): Promise<{message: string}> {
         try {
             const user = req.user._id;
@@ -84,6 +92,7 @@ export class UserController {
     @Post('/dislike-manga/:mangaId')
     @Auth({ requireVerified: true })
     @HttpCode(200)
+    @ApiOperation({ summary: 'Không thích manga' })
     async dislikeManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
         try {
             const user = req.user._id;
@@ -96,6 +105,7 @@ export class UserController {
 
     @Delete('/undislike-manga/:mangaId')
     @Auth({ requireVerified: true })
+    @ApiOperation({ summary: 'Không thích manga' })
     async undislikeManga (@Req() req: any, @Param('mangaId') mangaId: string): Promise<{message: string}> {
         const user = req.user._id;
         await this.userService.undislikeManga(user, mangaId);
@@ -105,6 +115,7 @@ export class UserController {
     @Post('/follow-manga/:mangaId')
     @Auth({ requireVerified: true })
     @HttpCode(200)
+    @ApiOperation({ summary: 'Theo dõi manga' })
     async followManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
         try {
             const user = req.user._id;
@@ -117,6 +128,7 @@ export class UserController {
 
     @Delete('/unfollow-manga/:mangaId') 
     @Auth({ requireVerified: true })
+    @ApiOperation({ summary: 'Hủy theo dõi manga' })
     async unfollowManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
         try {
             const user = req.user._id;

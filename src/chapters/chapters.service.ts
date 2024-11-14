@@ -1,10 +1,10 @@
-import {  ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {  ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Model } from 'mongoose';
 import { Manga, ViewLog } from 'src/manga/schemas/manga.schema';
 import { CreateChapterDTO } from './dto/create-chapter.dto';
 import { AwsService } from 'src/aws/aws.service';
-import { Chapter } from './schemas/chapter.shema';
+import { Chapter, ChapterType } from './schemas/chapter.shema';
 import { UpdateChaptersInfoDTO } from './dto/update-info.dto';
 import { User } from 'src/auth/schemas/user.schema';
 import { ApprovalStatus } from 'src/manga/schemas/status.enum';
@@ -30,11 +30,92 @@ export class ChaptersService {
         return this.chaptersModel.find();
     }
 
-    async getChapterById(id: string): Promise<Chapter> {
-        return this.chaptersModel.findById(id).populate('manga', 'title').lean()
+    async findById(id: string): Promise<Chapter> {
+        const chapter = await this.chaptersModel.findById(id)
+        if (!chapter) {
+            throw new HttpException('CHAPTER.NOT_FOUND', HttpStatus.NOT_FOUND);
+        }
+        return chapter
     }
+
+    async getChapterDetail(chapterId: string) {
+        const chapter = await this.chaptersModel.findById(chapterId)
+            .select({
+                _id: 1,
+                number: 1,
+                chapterTitle: 1,
+                chapterName: 1,
+                chapterType: 1,
+                pagesUrl: 1,
+                views: 1,
+                manga: 1
+            })
+            .populate('manga', '_id title')
+            .lean();
+
+        if (!chapter) {
+            throw new HttpException('CHAPTER.NOT_FOUND', HttpStatus.NOT_FOUND);
+        }
+
+        const [prevChapter, nextChapter] = await Promise.all([
+            this.chaptersModel.findOne({
+                manga: chapter.manga,
+                number: { $lt: chapter.number }
+            })
+            .sort({ number: -1 })
+            .select('_id number chapterName')
+            .lean(),
+
+            this.chaptersModel.findOne({
+                manga: chapter.manga,
+                number: { $gt: chapter.number }
+            })
+            .sort({ number: 1 })
+            .select('_id number chapterName')
+            .lean()
+        ]);
+
+        return {
+            ...chapter,
+            navigation: {
+                prevChapter: prevChapter || null,
+                nextChapter: nextChapter || null
+            }
+        };
+    }
+
+    async getChapterToRead(chapterId: string) {
+        const chapter = await this.chaptersModel.findById(chapterId)
+            .select({
+                _id: 1,
+                number: 1,
+                chapterName: 1,
+                pagesUrl: 1,
+                manga: 1
+            })
+            .populate('manga', '_id title')
+            .lean();
+
+        if (!chapter) {
+            throw new NotFoundException('Không tìm thấy chapter');
+        }
+
+        return {
+            chapterInfo: {
+                _id: chapter._id,
+                number: chapter.number,
+                chapterName: chapter.chapterName,
+            },
+            mangaInfo: {
+                _id: chapter.manga,
+                title: chapter.manga.title
+            },
+            pagesUrl: chapter.pagesUrl
+        };
+    }
+    
     async createChaptersByManga(mangaId: string, createChapterDTO: CreateChapterDTO, files: Express.Multer.File[], userId: string): Promise<Chapter> {
-        const { ...chapterData} = createChapterDTO
+        const { chapterType = ChapterType.NORMAL, ...chapterData} = createChapterDTO
     
         const manga = await this.mangaModel.findById(mangaId)
             .populate<{ followers: PopulatedFollower[] }>({
@@ -54,21 +135,47 @@ export class ChaptersService {
             throw new ConflictException(`'Manga ${mangaId} chưa được phê duyệt.`)
         }
         
-        const newChapters = new this.chaptersModel({...chapterData, manga: mangaId})
+        const newChapters = new this.chaptersModel({
+            ...chapterData, 
+            manga: mangaId,
+            chapterType
+        })
         const savedChapters = await newChapters.save()
     
         manga.chapters.push(savedChapters)
         await manga.save()
     
         const sanitizedTitle = manga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
-        const fileName = `${sanitizedTitle}-Chap-${savedChapters.number}`;
+        let fileName = '';
+        switch (chapterType) {
+            case ChapterType.SPECIAL:
+                fileName = `${sanitizedTitle}-Special`;
+                break;
+            case ChapterType.ONESHOT:
+                fileName = `${sanitizedTitle}-Oneshot`;
+                break;
+            default:
+                fileName = `${sanitizedTitle}-Chap-${savedChapters.number}`;
+        }
     
         const uploadedUrls = await this.awsService.uploadMultiFile(files, fileName)
         savedChapters.pagesUrl = uploadedUrls
 
+        let notificationMessage = '';
+        switch (chapterType) {
+            case ChapterType.SPECIAL:
+                notificationMessage = `Chapter Đặc Biệt của manga ${manga.title} vừa được cập nhật!`;
+                break;
+            case ChapterType.ONESHOT:
+                notificationMessage = `OneShot của manga ${manga.title} vừa được cập nhật!`;
+                break;
+            default:
+                notificationMessage = `Chapter ${savedChapters.number} của manga ${manga.title} vừa được cập nhật!`;
+        }
+
         await this.notificationService.createNotification({
             type: NotificationType.NEW_CHAPTER,
-            message: `Chapter ${savedChapters.number} của manga ${manga.title} vừa được cập nhật!`,
+            message: notificationMessage,
             recipients: manga.followers.map(follower => follower._id),
             manga: manga._id,
             chapter: savedChapters._id
@@ -78,8 +185,7 @@ export class ChaptersService {
     }
 
     async updateChaptersInfo(updateInfoDTO: UpdateChaptersInfoDTO, chapterId: string, userId: string): Promise<Chapter> {
-
-        const { number, chapterTitle } = updateInfoDTO
+        const { number, chapterTitle, chapterType } = updateInfoDTO
 
         const chapter = await this.chaptersModel.findById(chapterId)
         if (!chapter) {
@@ -91,8 +197,9 @@ export class ChaptersService {
             throw new ForbiddenException('Bạn không có quyền chỉnh sửa manga này')
         }
 
-        chapter.number = number
-        chapter.chapterTitle = chapterTitle
+        if (number !== undefined) chapter.number = number;
+        if (chapterTitle !== undefined) chapter.chapterTitle = chapterTitle;
+        if (chapterType !== undefined) chapter.chapterType = chapterType;
 
         return await chapter.save()
     }

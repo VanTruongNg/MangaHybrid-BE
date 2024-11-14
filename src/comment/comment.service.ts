@@ -54,7 +54,6 @@ export class CommentService {
                 throw new HttpException('COMMENT.PARENT_NOT_FOUND', HttpStatus.NOT_FOUND);
             }
 
-            // Nếu là reply của reply thì lấy comment gốc
             const rootCommentId = parentComment.parentComment ? parentComment.parentComment : parentComment._id;
             const rootComment = await this.commentModel.findById(rootCommentId);
             
