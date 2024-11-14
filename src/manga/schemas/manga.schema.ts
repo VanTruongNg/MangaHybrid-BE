@@ -12,13 +12,16 @@ import { Comment } from "src/comment/schema/comment.schema";
 )
 export class Manga {
     @Prop()
-    title: string;
+    title: string
 
     @Prop()
     coverImg: string
 
     @Prop()
-    description: string;
+    bannerImg: string
+
+    @Prop()
+    description: string
 
     @Prop()
     author: string
@@ -34,13 +37,13 @@ export class Manga {
     rating: number
 
     @Prop({default: 0})
-    like: number;
+    like: number
 
     @Prop({default: 0})
-    disLike: number;
+    disLike: number
 
     @Prop({default: 0})
-    view: number;
+    view: number
 
     @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
     followers: User[]
@@ -68,13 +71,13 @@ export class Manga {
     totalRating: number
 
     @Prop({ default: 0 })
-    ratingCount: number;
+    ratingCount: number
 
     @Prop({ default: 0, min: 0, max: 5 })
-    averageRating: number;
+    averageRating: number
 
     @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }] })
-    comments: Comment[];
+    comments: Comment[]
 }
 
 export const MangaSchema = SchemaFactory.createForClass(Manga)

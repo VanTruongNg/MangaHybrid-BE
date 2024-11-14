@@ -1,12 +1,14 @@
 import { Body, Controller, Get, NotFoundException, Param, Patch, Post, UploadedFiles, UseInterceptors, Req, HttpException, HttpStatus } from '@nestjs/common';
 import { ChaptersService } from './chapters.service';
-import { Chapter } from './schemas/chapter.shema';
+import { Chapter, ChapterType } from './schemas/chapter.shema';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { CreateChapterDTO } from './dto/create-chapter.dto';
 import { UpdateChaptersInfoDTO } from './dto/update-info.dto';
 import { Role } from 'src/auth/schemas/role.enum';
 import { Auth } from 'src/auth/decorators/auth.decorator';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Chapters')
 @Controller('chapters')
 export class ChaptersController {
     constructor(
@@ -14,17 +16,28 @@ export class ChaptersController {
     ) {}
 
     @Get()
+    @ApiOperation({ summary: 'Lấy tất cả chapter' })
     async getAllChapters(): Promise<Chapter[]> {
         return this.chapterService.getAll()
     }
 
     @Get('/:id')
+    @ApiOperation({ summary: 'Lấy chi tiết chapter' })
     async getChapterById(@Param('id') id: string): Promise<Chapter> {
-        return this.chapterService.getChapterById(id)
+        return this.chapterService.getChapterDetail(id)
+    }
+
+    @Get(':id/read')
+    @ApiOperation({ summary: 'Lấy chapter để đọc' })
+    async getChapterToRead(
+        @Param('id') chapterId: string
+    ) {
+        return this.chapterService.getChapterToRead(chapterId);
     }
 
     @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
     @Post('manga/:mangaId')
+    @ApiOperation({ summary: 'Tạo chapter' })
     @UseInterceptors(FilesInterceptor('files'))
     async createChaptersByManga (
         @Param('mangaId') mangaId: string, 
@@ -35,6 +48,14 @@ export class ChaptersController {
         try {
             if (!files || files.length === 0) {
                 throw new NotFoundException("Bạn chưa tải file lên")
+            }
+
+            if (createChapterDTO.chapterType && !Object.values(ChapterType).includes(createChapterDTO.chapterType)) {
+                throw new HttpException('Loại chapter không hợp lệ', HttpStatus.BAD_REQUEST);
+            }
+
+            if (createChapterDTO.chapterType === ChapterType.NORMAL && !createChapterDTO.number) {
+                throw new HttpException('Số chapter là bắt buộc đối với chapter thường', HttpStatus.BAD_REQUEST);
             }
     
             const user = req.user._id.toString()
@@ -48,8 +69,21 @@ export class ChaptersController {
 
     @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
     @Patch('update-info/:chapterId')
-    async updateChapterInfo (@Param('chapterId') chapterId: string, @Body() updateInfoDTO: UpdateChaptersInfoDTO, @Req() req: any): Promise<Chapter> {
+    @ApiOperation({ summary: 'Cập nhật thông tin chapter' })
+    async updateChapterInfo (
+        @Param('chapterId') chapterId: string, 
+        @Body() updateInfoDTO: UpdateChaptersInfoDTO, 
+        @Req() req: any
+    ): Promise<Chapter> {
         try {
+            if (updateInfoDTO.chapterType && !Object.values(ChapterType).includes(updateInfoDTO.chapterType)) {
+                throw new HttpException('Loại chapter không hợp lệ', HttpStatus.BAD_REQUEST);
+            }
+
+            if (updateInfoDTO.chapterType === ChapterType.NORMAL && !updateInfoDTO.number) {
+                throw new HttpException('Số chapter là bắt buộc đối với chapter thường', HttpStatus.BAD_REQUEST);
+            }
+
             const user = req.user._id
             return this.chapterService.updateChaptersInfo(updateInfoDTO, chapterId, user)
         } catch (error) {
@@ -59,6 +93,7 @@ export class ChaptersController {
 
     @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
     @Patch('/update-page/:chapterId')
+    @ApiOperation({ summary: 'Cập nhật link trang chapter' })
     @UseInterceptors(FilesInterceptor('files'))
     async updatePageUrl (@Req() req: any, @UploadedFiles() files: Express.Multer.File[], @Param('chapterId') chapterId: string): Promise<Chapter> {
         try {
@@ -74,6 +109,7 @@ export class ChaptersController {
     }
 
     @Post('update-view/:chapterId')
+    @ApiOperation({ summary: 'Cập nhật lượt xem chapter' })
     async updateView (@Param('chapterId') chapterId: string): Promise<{ message: string }> {
         try {
             await this.chapterService.updateChapterView(chapterId)

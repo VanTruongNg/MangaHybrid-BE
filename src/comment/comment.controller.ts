@@ -3,7 +3,9 @@ import { CommentService } from './comment.service';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { Comment } from './schema/comment.schema';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Comment')
 @Controller('comment')
 export class CommentController {
     constructor(
@@ -11,6 +13,7 @@ export class CommentController {
     ) {}
 
     @Post('manga/:mangaId')
+    @ApiOperation({ summary: 'Tạo comment cho manga' })
     @Auth({ requireVerified: true })
     async createMangaComment(
         @Req() req: any,
@@ -24,6 +27,7 @@ export class CommentController {
     }
 
     @Post('chapter/:chapterId')
+    @ApiOperation({ summary: 'Tạo comment cho chapter' })
     @Auth({ requireVerified: true })
     async createChapterComment(
         @Req() req: any,
@@ -41,6 +45,7 @@ export class CommentController {
     }
 
     @Get('manga/:mangaId')
+    @ApiOperation({ summary: 'Lấy tất cả comment của manga' })
     async getMangaComments(@Param('mangaId') mangaId: string): Promise<Comment[]> {
         try {
             return await this.commentService.getCommentsByManga(mangaId);
@@ -52,6 +57,7 @@ export class CommentController {
     }
 
     @Get('chapter/:chapterId')
+    @ApiOperation({ summary: 'Lấy tất cả comment của chapter' })
     async getChapterComments(@Param('chapterId') chapterId: string): Promise<Comment[]> {
         try {
             return await this.commentService.getCommentsByChapter(chapterId);
