@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, UploadedFiles, UseInterceptors, Req, HttpException, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, UploadedFiles, UseInterceptors, Req, HttpException, HttpStatus, Res } from '@nestjs/common';
 import { ChaptersService } from './chapters.service';
 import { Chapter, ChapterType } from './schemas/chapter.shema';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -7,12 +7,17 @@ import { UpdateChaptersInfoDTO } from './dto/update-info.dto';
 import { Role } from 'src/auth/schemas/role.enum';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
+import JSZip = require('jszip');
+import axios from 'axios';
+import { MangaService } from 'src/manga/manga.service';
 
 @ApiTags('Chapters')
 @Controller('chapters')
 export class ChaptersController {
     constructor(
-        private readonly chapterService: ChaptersService
+        private readonly chapterService: ChaptersService,
+        private readonly mangaService: MangaService
     ) {}
 
     @Get()
@@ -25,14 +30,6 @@ export class ChaptersController {
     @ApiOperation({ summary: 'Lấy chi tiết chapter' })
     async getChapterById(@Param('id') id: string): Promise<Chapter> {
         return this.chapterService.getChapterDetail(id)
-    }
-
-    @Get(':id/read')
-    @ApiOperation({ summary: 'Lấy chapter để đọc' })
-    async getChapterToRead(
-        @Param('id') chapterId: string
-    ) {
-        return this.chapterService.getChapterToRead(chapterId);
     }
 
     @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
@@ -117,5 +114,69 @@ export class ChaptersController {
         } catch (error) {
             throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
         }
+    }
+
+    @Get(':id/download')
+    @ApiOperation({ summary: 'Tải chapter dạng CBZ' }) 
+    async downloadChapterCbz(
+        @Param('id') chapterId: string,
+        @Res() res: Response
+    ) {
+        const zipBuffer = await this.chapterService.generateChapterZip(chapterId);
+
+        const chapter = await this.chapterService.findById(chapterId);
+        
+        res.set({
+            'Content-Type': 'application/vnd.comicbook+zip',
+            'Content-Disposition': `attachment; filename="chapter-${chapter.number}.cbz"`
+        });
+        
+        res.send(zipBuffer);
+    }
+
+    @Get(':id/offline-info')
+    @ApiOperation({ summary: 'Lấy thông tin manga để lưu offline' })
+    async getMangaOfflineInfo(
+        @Param('id') mangaId: string,
+        @Res() res: Response
+    ) {
+        const manga = await this.mangaService.findById(mangaId);
+        
+        const zip = new JSZip();
+
+        const metadata = {
+            id: mangaId,
+            title: manga.title,
+            description: manga.description,
+            author: manga.author,
+            status: manga.status,
+            genres: manga.genre.map(g => g.name)
+        };
+        
+        zip.file('metadata.json', JSON.stringify(metadata, null, 2));
+
+        try {
+            const [coverResponse, bannerResponse] = await Promise.all([
+                axios.get(manga.coverImg, { responseType: 'arraybuffer' }),
+                axios.get(manga.bannerImg, { responseType: 'arraybuffer' })
+            ]);
+            
+            zip.file('images/cover.jpg', coverResponse.data);
+            zip.file('images/banner.jpg', bannerResponse.data);
+        } catch (error) {
+            console.error('Failed to download cover/banner images:', error);
+        }
+
+        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+        
+        const sanitizedTitle = encodeURIComponent(manga.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-'));
+        const filename = `manga-${mangaId}-${sanitizedTitle}.zip`;
+        
+        res.set({
+            'Content-Type': 'application/zip',
+            'Content-Disposition': `attachment; filename="${filename}"`
+        });
+        
+        res.send(zipBuffer);
     }
 }

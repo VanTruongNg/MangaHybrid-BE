@@ -10,6 +10,8 @@ import { User } from 'src/auth/schemas/user.schema';
 import { ApprovalStatus } from 'src/manga/schemas/status.enum';
 import { NotificationType } from 'src/notification/schema/notification.schema';
 import { NotificationService } from 'src/notification/notification.service';
+import axios from 'axios';
+import JSZip = require('jszip');
 
 interface PopulatedFollower {
     _id: mongoose.Types.ObjectId;
@@ -83,36 +85,6 @@ export class ChaptersService {
             }
         };
     }
-
-    async getChapterToRead(chapterId: string) {
-        const chapter = await this.chaptersModel.findById(chapterId)
-            .select({
-                _id: 1,
-                number: 1,
-                chapterName: 1,
-                pagesUrl: 1,
-                manga: 1
-            })
-            .populate('manga', '_id title')
-            .lean();
-
-        if (!chapter) {
-            throw new NotFoundException('Không tìm thấy chapter');
-        }
-
-        return {
-            chapterInfo: {
-                _id: chapter._id,
-                number: chapter.number,
-                chapterName: chapter.chapterName,
-            },
-            mangaInfo: {
-                _id: chapter.manga,
-                title: chapter.manga.title
-            },
-            pagesUrl: chapter.pagesUrl
-        };
-    }
     
     async createChaptersByManga(mangaId: string, createChapterDTO: CreateChapterDTO, files: Express.Multer.File[], userId: string): Promise<Chapter> {
         const { chapterType = ChapterType.NORMAL, ...chapterData} = createChapterDTO
@@ -147,6 +119,7 @@ export class ChaptersService {
     
         const sanitizedTitle = manga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
         let fileName = '';
+        
         switch (chapterType) {
             case ChapterType.SPECIAL:
                 fileName = `${sanitizedTitle}-Special`;
@@ -158,9 +131,12 @@ export class ChaptersService {
                 fileName = `${sanitizedTitle}-Chap-${savedChapters.number}`;
         }
     
-        const uploadedUrls = await this.awsService.uploadMultiFile(files, fileName)
+        const uploadedUrls = await Promise.all(files.map(async (file, index) => {
+            const pageFileName = `${fileName}-page-${index + 1}`;
+            return await this.awsService.uploadFile(file, pageFileName);
+        }));
         savedChapters.pagesUrl = uploadedUrls
-
+    
         let notificationMessage = '';
         switch (chapterType) {
             case ChapterType.SPECIAL:
@@ -172,7 +148,7 @@ export class ChaptersService {
             default:
                 notificationMessage = `Chapter ${savedChapters.number} của manga ${manga.title} vừa được cập nhật!`;
         }
-
+    
         await this.notificationService.createNotification({
             type: NotificationType.NEW_CHAPTER,
             message: notificationMessage,
@@ -205,25 +181,38 @@ export class ChaptersService {
     }
 
     async updatePageUrl (files: Express.Multer.File[], chapterId: string, userId: string): Promise<Chapter> {
-    
         const chapter = await this.chaptersModel.findById(chapterId).populate('manga')
         if (!chapter) {
             throw new NotFoundException(`Chapter ${chapterId} not found`)
         }
-
+    
         const manga = chapter.manga as any
-
+    
         const user = await this.userModel.findById(userId)
         if (!user.uploadedManga.some(uploadedManga => uploadedManga.toString() === manga._id.toString())){
-            throw new ForbiddenException ("Bạn không có quyền cập nhật Chapter này")
+            throw new HttpException('CHAPTER.FORBIDDEN', HttpStatus.FORBIDDEN)
         }
-
+    
         const sanitizedTitle = manga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
-        const fileName = `${sanitizedTitle}-Chap-${chapter.number}`
-
-        const uploadedUrls = await this.awsService.uploadMultiFile(files, fileName)
+        let fileName = '';
+        
+        switch (chapter.chapterType) {
+            case ChapterType.SPECIAL:
+                fileName = `${sanitizedTitle}-Special`;
+                break;
+            case ChapterType.ONESHOT:
+                fileName = `${sanitizedTitle}-Oneshot`;
+                break;
+            default:
+                fileName = `${sanitizedTitle}-Chap-${chapter.number}`;
+        }
+    
+        const uploadedUrls = await Promise.all(files.map(async (file, index) => {
+            const pageFileName = `${fileName}-page-${index + 1}`;
+            return await this.awsService.uploadFile(file, pageFileName);
+        }));
         chapter.pagesUrl = uploadedUrls
-
+    
         return await chapter.save()
     }
 
@@ -261,5 +250,41 @@ export class ChaptersService {
         chapter.views = (chapter.views || 0) + 1
         await manga.save()
         await chapter.save()
+    }
+
+    async generateChapterZip(chapterId: string): Promise<Buffer> {
+        const chapter = await this.chaptersModel.findById(chapterId)
+          .populate('manga', '_id title')
+          .lean();
+          
+        if (!chapter) {
+          throw new HttpException(`CHAPTER.NOT_FOUND`, HttpStatus.NOT_FOUND);
+        }
+      
+        if (!chapter.pagesUrl) {
+          throw new HttpException(`CHAPTER.NO_PAGES_URL`, HttpStatus.BAD_REQUEST);
+        }
+      
+        const zip = new JSZip();
+    
+        const metadata = {
+            id: chapter._id,
+            mangaId: chapter.manga,
+            number: chapter.number,
+            title: chapter.chapterTitle,
+            type: chapter.chapterType,
+            totalPages: chapter.pagesUrl.length
+        };
+    
+        zip.file('metadata.json', JSON.stringify(metadata, null, 2));
+    
+        for (let i = 0; i < chapter.pagesUrl.length; i++) {
+            const response = await axios.get(chapter.pagesUrl[i], {
+                responseType: 'arraybuffer'
+            });
+            zip.file(`pages/${(i + 1).toString().padStart(3, '0')}.jpg`, response.data);
+        }
+      
+        return zip.generateAsync({ type: 'nodebuffer' });
     }
 }
