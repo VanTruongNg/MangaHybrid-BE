@@ -73,7 +73,7 @@ export class AuthController {
         @Res({ passthrough: true }) response: Response
     ): Promise<{accessToken?: string, refreshToken?: string, message: string}> {
         try {
-            const token = await this.authService.handleGoogleLogin(googleLoginDTO.idToken, platform)
+            const token = await this.authService.handleGoogleLogin(googleLoginDTO.idToken)
 
             if (platform === Platform.WEB) {
                 response.cookie('access_token', token.accessToken, {

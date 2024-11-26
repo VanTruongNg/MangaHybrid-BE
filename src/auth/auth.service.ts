@@ -117,40 +117,50 @@ export class AuthService {
         return { accessToken, refreshToken }
     }
 
-    async handleGoogleLogin(idToken: string, platform: Platform): Promise<{accessToken: string, refreshToken: string}> {
+    async handleGoogleLogin(accessToken: string): Promise<{accessToken: string, refreshToken: string}> {
         try {
-            const clientId = platform === Platform.WEB ? process.env.GOOGLE_CLIENT_ID_WEB : process.env.GOOGLE_CLIENT_ID_MOBILE
-            const client = new OAuth2Client(clientId)
-
-            const ticket = await client.verifyIdToken({
-                idToken,
-                audience: [
-                    process.env.GOOGLE_CLIENT_ID_WEB,
-                    process.env.GOOGLE_CLIENT_ID_MOBILE
-                ]
-            })
-
-            const { email, name, picture } = ticket.getPayload()
-
-            let user = await this.userModel.findOne({ email })
-
+            console.log('Verifying Google access token...');
+            const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { 
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+    
+            if (!response.ok) {
+                console.error('Google API Error:', await response.text());
+                throw new UnauthorizedException('Token Google không hợp lệ');
+            }
+    
+            const userData = await response.json();
+            console.log('Google user data:', {
+                email: userData.email,
+                name: userData.name,
+                picture: userData.picture 
+            });
+    
+            let user = await this.userModel.findOne({ email: userData.email });
+            console.log('Existing user:', user ? 'Found' : 'Not found');
+    
             if (user) {
                 if (!user.isVerified || user.provider !== 'google') {
+                    console.log('Updating existing user to Google provider');
                     user.isVerified = true;
                     user.provider = 'google';
-                    user.avatarUrl = picture;
+                    user.avatarUrl = userData.picture;
                     await user.save();
                 }
             } else {
+                console.log('Creating new Google user');
                 user = await this.userModel.create({
-                    email,
-                    name,
-                    avatarUrl: picture,
+                    email: userData.email,
+                    name: userData.name,
+                    avatarUrl: userData.picture,
                     isVerified: true,
                     provider: 'google'
                 });
             }
-
+    
             const refreshToken = this.jwtService.sign(
                 { id: user._id, email: user.email, type: 'refresh' },
                 {
@@ -158,18 +168,23 @@ export class AuthService {
                     expiresIn: process.env.REFRESH_TOKEN_EXPIRES
                 }
             );
-
+    
             await this.refreshTokenModel.create({
                 token: refreshToken,
                 user: user._id,
                 expiresAt: new Date(Date.now() + 24*60*60*1000)
             });
-
-            const accessToken = this.jwtService.sign({ id: user._id, email: user.email });
-
-            return { accessToken, refreshToken };
+    
+            // Tạo access token sau
+            const newAccessToken = this.jwtService.sign({ id: user._id, email: user.email });
+            console.log('Tokens generated successfully');
+    
+            return { accessToken: newAccessToken, refreshToken };
         } catch (error) {
-            throw new HttpException('LOGIN.Đăng nhập Google thất bại', HttpStatus.INTERNAL_SERVER_ERROR);
+            console.error('Google login error:', error);
+            throw error instanceof HttpException 
+                ? error 
+                : new HttpException('LOGIN.Đăng nhập Google thất bại', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
