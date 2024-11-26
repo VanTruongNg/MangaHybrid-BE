@@ -14,6 +14,8 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PasswordReset } from './schemas/password-reset.schema';
 import { FogottenPassword } from './interface/resetpassword.interface';
+import { OAuth2Client } from 'google-auth-library';
+import { Platform } from 'src/utils/platform';
 
 @Injectable()
 export class AuthService {
@@ -113,6 +115,62 @@ export class AuthService {
         const accessToken = this.jwtService.sign({ id: user._id, email: user.email })
 
         return { accessToken, refreshToken }
+    }
+
+    async handleGoogleLogin(idToken: string, platform: Platform): Promise<{accessToken: string, refreshToken: string}> {
+        try {
+            const clientId = platform === Platform.WEB ? process.env.GOOGLE_CLIENT_ID_WEB : process.env.GOOGLE_CLIENT_ID_MOBILE
+            const client = new OAuth2Client(clientId)
+
+            const ticket = await client.verifyIdToken({
+                idToken,
+                audience: [
+                    process.env.GOOGLE_CLIENT_ID_WEB,
+                    process.env.GOOGLE_CLIENT_ID_MOBILE
+                ]
+            })
+
+            const { email, name, picture } = ticket.getPayload()
+
+            let user = await this.userModel.findOne({ email })
+
+            if (user) {
+                if (!user.isVerified || user.provider !== 'google') {
+                    user.isVerified = true;
+                    user.provider = 'google';
+                    user.avatarUrl = picture;
+                    await user.save();
+                }
+            } else {
+                user = await this.userModel.create({
+                    email,
+                    name,
+                    avatarUrl: picture,
+                    isVerified: true,
+                    provider: 'google'
+                });
+            }
+
+            const refreshToken = this.jwtService.sign(
+                { id: user._id, email: user.email, type: 'refresh' },
+                {
+                    secret: process.env.REFRESH_TOKEN_SECRET,
+                    expiresIn: process.env.REFRESH_TOKEN_EXPIRES
+                }
+            );
+
+            await this.refreshTokenModel.create({
+                token: refreshToken,
+                user: user._id,
+                expiresAt: new Date(Date.now() + 24*60*60*1000)
+            });
+
+            const accessToken = this.jwtService.sign({ id: user._id, email: user.email });
+
+            return { accessToken, refreshToken };
+        } catch (error) {
+            throw new HttpException('LOGIN.Đăng nhập Google thất bại', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     async findUserByEmail(email: string): Promise<User> {

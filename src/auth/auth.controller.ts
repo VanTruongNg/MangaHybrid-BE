@@ -7,6 +7,7 @@ import { Platform } from 'src/utils/platform';
 import { Response } from 'express';
 import { RefreshTokenDTO } from './dto/refreshToken.dto';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { GoogleLoginDTO } from './dto/google-login.dto';
 @Controller('auth')
 @ApiTags('Auth')
 export class AuthController {
@@ -59,6 +60,44 @@ export class AuthController {
                 refreshToken: token.refreshToken,
                 message: 'Đăng nhập thành công'
             }
+        } catch (error) {
+            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
+
+    @Post('/google')
+    @ApiOperation({ summary: 'Đăng nhập Google' })
+    async googleLogin (
+        @Body() googleLoginDTO: GoogleLoginDTO, 
+        @Headers('x-platform') platform: Platform, 
+        @Res({ passthrough: true }) response: Response
+    ): Promise<{accessToken?: string, refreshToken?: string, message: string}> {
+        try {
+            const token = await this.authService.handleGoogleLogin(googleLoginDTO.idToken, platform)
+
+            if (platform === Platform.WEB) {
+                response.cookie('access_token', token.accessToken, {
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: 'lax',
+                    maxAge: 15 * 60 * 1000
+                });
+                
+                response.cookie('refresh_token', token.refreshToken, {
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: 'lax',
+                    maxAge: 24 * 60 * 60 * 1000
+                });
+    
+                return { message: 'Đăng nhập Google thành công' };
+            }
+
+            return {
+                accessToken: token.accessToken,
+                refreshToken: token.refreshToken,
+                message: 'Đăng nhập Google thành công'
+            };
         } catch (error) {
             throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
         }

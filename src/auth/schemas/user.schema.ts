@@ -22,7 +22,7 @@ export class User{
     email: string;
 
     @Prop({ required: true })
-    password: string;
+    password?: string;
 
     @Prop({
         type: String,
@@ -35,7 +35,10 @@ export class User{
     isVerified: boolean
 
     @Prop ()
-    avatarUrl: string
+    avatarUrl?: string
+
+    @Prop({ default: 'local' })
+    provider: string
 
     @Prop ({ type:[{type: mongoose.Schema.Types.ObjectId, ref: 'Manga'}] })
     favoritesManga: Manga[]
