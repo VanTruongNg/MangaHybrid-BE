@@ -26,7 +26,6 @@ export class Token {
     @Prop({
         type: Date,
         required: true,
-        expires: '24h',
         default: () => new Date()
     })
     expiresAt: Date;
@@ -34,5 +33,5 @@ export class Token {
 
 export const TokenSchema = SchemaFactory.createForClass(Token)
 
-TokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
+TokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 86400 })
 TokenSchema.index({ user: 1, isRevoked: 1 })
