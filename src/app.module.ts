@@ -17,6 +17,7 @@ import { CommentModule } from './comment/comment.module';
 import { RatingModule } from './rating/rating.module';
 import { NotificationModule } from './notification/notification.module';
 import { BullModule, BullRootModuleOptions } from '@nestjs/bull';
+import { ChatRoomModule } from './chat-room/chat-room.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { BullModule, BullRootModuleOptions } from '@nestjs/bull';
     CommentModule,
     RatingModule,
     NotificationModule,
+    ChatRoomModule,
   ],
   controllers: [AppController, UserController],
   providers: [AppService, UserService],

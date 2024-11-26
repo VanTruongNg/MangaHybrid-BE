@@ -2,16 +2,16 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
-import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: "*",
-    methods: '*',
-    allowedHeaders: 'Content-Type, Authorization'
+    origin: "http://localhost:8080",
+    methods: 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+    allowedHeaders: 'Content-Type, Authorization, x-platform',
+    credentials: true,
   })
 
   const config = new DocumentBuilder()

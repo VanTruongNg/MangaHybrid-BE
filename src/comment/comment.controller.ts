@@ -67,4 +67,16 @@ export class CommentController {
                 : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    @Get('replies/:commentId')
+    @ApiOperation({ summary: 'Lấy replies của một comment' })
+    async getCommentReplies(@Param('commentId') commentId: string): Promise<Comment[]> {
+        try {
+            return await this.commentService.getCommentReplies(commentId);
+        } catch (error) {
+            throw error instanceof HttpException 
+                ? error 
+                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }

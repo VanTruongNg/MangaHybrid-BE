@@ -8,7 +8,7 @@ export enum NotificationType {
   MANGA_REJECTED = 'MANGA_REJECTED'
 }
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, expires: '2d' })
 export class Notification {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Manga' })
     manga: mongoose.Types.ObjectId;
