@@ -7,5 +7,5 @@ export class GoogleLoginDTO {
     })
     @IsNotEmpty({ message: 'ID Token không được để trống' })
     @IsString()
-    readonly idToken: string;
+    readonly accessToken: string;
 }
