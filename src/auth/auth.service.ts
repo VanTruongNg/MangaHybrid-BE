@@ -119,7 +119,6 @@ export class AuthService {
 
     async handleGoogleLogin(accessToken: string): Promise<{accessToken: string, refreshToken: string}> {
         try {
-            console.log('Verifying Google access token...');
             const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                 headers: { 
                     Authorization: `Bearer ${accessToken}`,
@@ -128,30 +127,21 @@ export class AuthService {
             });
     
             if (!response.ok) {
-                console.error('Google API Error:', await response.text());
                 throw new UnauthorizedException('Token Google không hợp lệ');
             }
     
             const userData = await response.json();
-            console.log('Google user data:', {
-                email: userData.email,
-                name: userData.name,
-                picture: userData.picture 
-            });
     
             let user = await this.userModel.findOne({ email: userData.email });
-            console.log('Existing user:', user ? 'Found' : 'Not found');
-    
+            
             if (user) {
                 if (!user.isVerified || user.provider !== 'google') {
-                    console.log('Updating existing user to Google provider');
                     user.isVerified = true;
                     user.provider = 'google';
                     user.avatarUrl = userData.picture;
                     await user.save();
                 }
             } else {
-                console.log('Creating new Google user');
                 user = await this.userModel.create({
                     email: userData.email,
                     name: userData.name,
@@ -177,8 +167,7 @@ export class AuthService {
     
             // Tạo access token sau
             const newAccessToken = this.jwtService.sign({ id: user._id, email: user.email });
-            console.log('Tokens generated successfully');
-    
+
             return { accessToken: newAccessToken, refreshToken };
         } catch (error) {
             console.error('Google login error:', error);
