@@ -11,7 +11,7 @@ import { ApprovalStatus } from 'src/manga/schemas/status.enum';
 import { NotificationType } from 'src/notification/schema/notification.schema';
 import { NotificationService } from 'src/notification/notification.service';
 import axios from 'axios';
-import JSZip = require('jszip');
+import JSZip = require('jszip'); 
 
 interface PopulatedFollower {
     _id: mongoose.Types.ObjectId;
@@ -89,22 +89,18 @@ export class ChaptersService {
     async createChaptersByManga(mangaId: string, createChapterDTO: CreateChapterDTO, files: Express.Multer.File[], userId: string): Promise<Chapter> {
         const { chapterType = ChapterType.NORMAL, ...chapterData} = createChapterDTO
     
-        const manga = await this.mangaModel.findById(mangaId)
-            .populate<{ followers: PopulatedFollower[] }>({
-                path: 'followers',
-                select: '_id'
-            });
-            
+        const manga = await this.mangaModel.findById(mangaId);
+                
         if (!manga) {
-            throw new NotFoundException(`Manga có ID: ${mangaId} không tồn tại`)
+            throw new HttpException("Manga.NOT_FOUND", HttpStatus.NOT_FOUND)
         }
     
         if (manga.uploader.toString() !== userId) {
-            throw new ForbiddenException("Bạn không có quyền thêm Chapter cho Manga này")
+            throw new HttpException("CHAPTER.FORBIDDEN", HttpStatus.FORBIDDEN)
         }
     
         if (manga.approvalStatus !== ApprovalStatus.APPROVED) {
-            throw new ConflictException(`'Manga ${mangaId} chưa được phê duyệt.`)
+            throw new HttpException("Manga.NOT_APPROVED", HttpStatus.CONFLICT)
         }
         
         const newChapters = new this.chaptersModel({
@@ -149,13 +145,19 @@ export class ChaptersService {
                 notificationMessage = `Chapter ${savedChapters.number} của manga ${manga.title} vừa được cập nhật!`;
         }
     
-        await this.notificationService.createNotification({
-            type: NotificationType.NEW_CHAPTER,
-            message: notificationMessage,
-            recipients: manga.followers.map(follower => follower._id),
-            manga: manga._id,
-            chapter: savedChapters._id
-        });
+        const followers = await this.userModel.find({
+            followingManga: mangaId
+        }).select('_id');
+    
+        if (followers.length > 0) {
+            await this.notificationService.createNotification({
+                type: NotificationType.NEW_CHAPTER,
+                message: notificationMessage,
+                recipients: followers.map(follower => follower._id),
+                manga: manga._id,
+                chapter: savedChapters._id
+            });
+        }
     
         return await savedChapters.save();
     }
@@ -216,40 +218,46 @@ export class ChaptersService {
         return await chapter.save()
     }
 
-    async updateChapterView (chapterId: string): Promise<void> {
-        const chapter = await this.chaptersModel.findById(chapterId)
+    async updateChapterView(chapterId: string): Promise<void> {
+        const chapter = await this.chaptersModel.findById(chapterId);
         if (!chapter) {
-            throw new NotFoundException(`Chapter ${chapterId} không tồn tại`)
+            throw new NotFoundException(`Chapter ${chapterId} không tồn tại`);
         }
-
-        const manga = await this.mangaModel.findById(chapter.manga)
+    
+        const manga = await this.mangaModel.findById(chapter.manga);
         if (!manga) {
-            throw new NotFoundException('Manga liên quan không tồn tại')
+            throw new NotFoundException('Manga liên quan không tồn tại');
         }
-
-        const today = new Date()
-        today.setUTCHours(0,0,0,0)
-
-        let viewLog = await this.viewLogModel.findOne({
-            manga: manga._id,
-            date: today
-        })
-
-        if (!viewLog) {
-            viewLog = new this.viewLogModel({
-                manga: manga._id,
-                date: today,
-                views: 0
-            })
-        }
-
-        viewLog.views = (viewLog.views || 0) + 1
-        await viewLog.save()
-
-        manga.view = (manga.view || 0) + 1;
-        chapter.views = (chapter.views || 0) + 1
-        await manga.save()
-        await chapter.save()
+    
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+    
+        await Promise.all([
+            this.viewLogModel.findOneAndUpdate(
+                {
+                    manga: manga._id,
+                    date: today
+                },
+                {
+                    $inc: { views: 1 },
+                    $setOnInsert: { 
+                        manga: manga._id,
+                        date: today
+                    }
+                },
+                { upsert: true }
+            ),
+    
+            this.mangaModel.findByIdAndUpdate(
+                manga._id,
+                { $inc: { view: 1 } }
+            ),
+    
+            this.chaptersModel.findByIdAndUpdate(
+                chapterId,
+                { $inc: { views: 1 } }
+            )
+        ]);
     }
 
     async generateChapterZip(chapterId: string): Promise<Buffer> {
@@ -276,7 +284,8 @@ export class ChaptersService {
             totalPages: chapter.pagesUrl.length
         };
     
-        zip.file('metadata.json', JSON.stringify(metadata, null, 2));
+        const metadataBuffer = Buffer.from(JSON.stringify(metadata, null, 2), 'utf8');
+        zip.file('metadata.json', metadataBuffer);
     
         for (let i = 0; i < chapter.pagesUrl.length; i++) {
             const response = await axios.get(chapter.pagesUrl[i], {
@@ -285,6 +294,12 @@ export class ChaptersService {
             zip.file(`pages/${(i + 1).toString().padStart(3, '0')}.jpg`, response.data);
         }
       
-        return zip.generateAsync({ type: 'nodebuffer' });
+        return zip.generateAsync({ 
+            type: 'nodebuffer',
+            compression: 'DEFLATE',
+            compressionOptions: {
+                level: 6
+            }
+        });
     }
 }

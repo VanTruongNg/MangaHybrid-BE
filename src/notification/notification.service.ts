@@ -71,8 +71,8 @@ export class NotificationService {
         });
     
         const formattedNotification = await this.notificationModel.findById(notification._id)
-          .populate('manga', 'title coverImg')
-          .populate('chapter', 'number')
+          .populate('manga', '_id title coverImg')
+          .populate('chapter', '_id number')
           .lean();
     
         data.recipients.forEach(userId => {

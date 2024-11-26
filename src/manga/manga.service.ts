@@ -23,38 +23,61 @@ export class MangaService {
     }
 
     async findById(id: string): Promise<Manga> {
-        const manga = await this.mangaModel.findById(id)
-            .select({
-                _id: 1,
-                title: 1,
-                description: 1, 
-                author: 1,
-                coverImg: 1,
-                bannerImg: 1,
-                status: 1,
-                view: 1,
-                rating: 1,
-                ratingCount: 1
-            })
-            .populate('genre', '_id name')
-            .populate('uploader', '_id name avatarUrl')
-            .populate({
-                path: 'chapters',
-                select: '_id number chapterTitle chapterName chapterType views createdAt',
-                options: { 
-                    sort: { 
-                        number: -1,
-                        createdAt: -1
+        try {
+            const manga = await this.mangaModel
+                .findById(id)
+                .populate([
+                    {
+                        path: 'uploader',
+                        select: '_id name email avatarUrl'
                     },
-                    limit: 100
-                }
-            });
+                    {
+                        path: 'chapters',
+                        select: '_id chapterTitle chapterName views createdAt'
+                    },
+                    {
+                        path: 'genre',
+                        select: '_id name'
+                    },
+                    {
+                        path: 'comments',
+                        match: { parentComment: null },
+                        select: '_id content createdAt',
+                        populate: [
+                            {
+                                path: 'user',
+                                select: '_id name avatarUrl'
+                            },
+                            {
+                                path: 'replies',
+                                select: '_id'
+                            }
+                        ]
+                    }
+                ])
+                .select('-__v')
+                .lean();
     
-        if (!manga) {
-            throw new NotFoundException(`Không tồn tại Manga có ID: ${id}`);
+            if (!manga) {
+                throw new NotFoundException('MANGA.NOT_FOUND');
+            }
+    
+            manga.like = Number(manga.like) || 0;
+            manga.disLike = Number(manga.disLike) || 0;
+            manga.followers = Number(manga.followers) || 0;
+            manga.view = Number(manga.view) || 0;
+            manga.rating = Number(manga.rating) || 0;
+            manga.totalRating = Number(manga.totalRating) || 0;
+            manga.ratingCount = Number(manga.ratingCount) || 0;
+            manga.averageRating = Number(manga.averageRating) || 0;
+    
+            return manga;
+        } catch (error) {
+            if (error.name === 'CastError') {
+                throw new NotFoundException('MANGA.NOT_FOUND');
+            }
+            throw error;
         }
-    
-        return manga;
     }
 
     async findTopMangaByViewsToday(): Promise<Manga[]> {

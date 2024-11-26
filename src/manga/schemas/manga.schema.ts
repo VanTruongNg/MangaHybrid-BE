@@ -45,8 +45,8 @@ export class Manga {
     @Prop({default: 0})
     view: number
 
-    @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
-    followers: User[]
+    @Prop({ default: 0 })
+    followers: number
 
     @Prop({ type: [{type: mongoose.Schema.Types.ObjectId, ref: 'Chapter'}]})
     chapters: Chapter[]

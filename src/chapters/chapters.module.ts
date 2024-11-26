@@ -1,5 +1,5 @@
 import { MangaModule } from './../manga/manga.module';
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ChaptersController } from './chapters.controller';
 import { ChaptersService } from './chapters.service';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -14,14 +14,14 @@ import { NotificationModule } from 'src/notification/notification.module';
   imports: [
     MongooseModule.forFeature([{name: 'Chapter', schema: ChapterSchema}]),
     AuthModule,
-    MangaModule,
+    forwardRef(() => MangaModule),
     AwsModule,
-    UserModule,
+    forwardRef(() => UserModule),
     NotificationModule,
     WebsocketModule
   ],
   controllers: [ChaptersController],
   providers: [ChaptersService],
-  exports: [MongooseModule]
+  exports: [MongooseModule, ChaptersService]
 })
 export class ChaptersModule {}

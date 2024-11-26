@@ -1,6 +1,6 @@
 import { 
     BadRequestException, Body, Controller, FileTypeValidator, Get, 
-    MaxFileSizeValidator, Param, ParseFilePipe, Post, Put, Req, UploadedFile, UploadedFiles, UseInterceptors 
+    MaxFileSizeValidator, Param, ParseFilePipe, Post, Put, Req, Res, UploadedFile, UploadedFiles, UseInterceptors 
 } from '@nestjs/common';
 import { MangaService } from './manga.service';
 import { Manga } from './schemas/manga.schema';
@@ -9,6 +9,9 @@ import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express
 import { CreateMangaDTO } from './dto/create-manga.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import JSZip = require('jszip');
+import axios from 'axios';
+import { Response } from 'express';
 
 @ApiTags('Manga')
 @Controller('manga')    
@@ -109,5 +112,81 @@ export class MangaController {
             throw new BadRequestException('Hãy thêm ảnh banner!')
         }
         return await this.mangaService.updateBannerImg(id, file, req.user._id)
+    }
+
+    @Get(':id/offline-info')
+    @ApiOperation({ summary: 'Lấy thông tin manga để lưu offline' })
+    async getMangaOfflineInfo(
+        @Param('id') mangaId: string,
+        @Res() res: Response
+    ) {
+        const manga = await this.mangaService.findById(mangaId);
+        
+        const zip = new JSZip();
+
+        const metadata = {
+            id: mangaId,   
+            title: manga.title,
+            description: manga.description,
+            author: manga.author,
+            status: manga.status,
+            genres: manga.genre.map(g => g.name),
+            downloadedAt: new Date().toISOString()
+        };
+
+        const textEncoder = new TextEncoder();
+        const jsonString = JSON.stringify(metadata, null, 2);
+        const jsonBuffer = textEncoder.encode(jsonString);
+
+        zip.file('metadata.json', jsonBuffer, {
+            binary: true,
+            createFolders: true,
+            compression: 'DEFLATE',
+            compressionOptions: {
+                level: 9
+            }
+        });
+
+        try {
+            const [coverResponse, bannerResponse] = await Promise.all([
+                axios.get(manga.coverImg, { responseType: 'arraybuffer' }),
+                axios.get(manga.bannerImg, { responseType: 'arraybuffer' })
+            ]);
+        
+            zip.file('images/cover.jpg', coverResponse.data, {
+                binary: true,
+                compression: 'DEFLATE'
+            });
+            zip.file('images/banner.jpg', bannerResponse.data, {
+                binary: true,
+                compression: 'DEFLATE'
+            });
+        } catch (error) {
+            console.error('Failed to download cover/banner images:', error);
+        }
+
+        const zipBuffer = await zip.generateAsync({ 
+            type: 'nodebuffer',
+            compression: 'DEFLATE',
+            compressionOptions: {
+                level: 9
+            },
+            platform: 'UNIX'
+        });
+        
+        const sanitizedTitle = manga.title
+            .replace(/[^\w\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .toLowerCase();
+        const filename = `manga-${mangaId}-${sanitizedTitle}.zip`;
+
+        res.set({
+            'Content-Type': 'application/zip',
+            'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+            'Content-Transfer-Encoding': 'binary',
+            'X-Content-Type-Options': 'nosniff'
+        });
+        
+        res.send(zipBuffer);
     }
 }

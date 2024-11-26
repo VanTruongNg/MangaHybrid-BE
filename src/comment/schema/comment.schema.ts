@@ -1,13 +1,20 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import mongoose, { Document } from "mongoose";
+import mongoose from "mongoose";
 import { User } from "src/auth/schemas/user.schema";
 import { Chapter } from "src/chapters/schemas/chapter.shema";
 import { Manga } from "src/manga/schemas/manga.schema";
 
+interface Mention {
+    userId: User;
+    username: string;
+    startIndex: number;
+    endIndex: number;
+}
+
 @Schema({
     timestamps: true
 })
-export class Comment extends Document {
+export class Comment {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
     user: User;
 
@@ -28,6 +35,17 @@ export class Comment extends Document {
 
     @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }], default: [] })
     replies: Comment[];
+
+    @Prop({
+        type: [{
+            userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            username: String,
+            startIndex: Number,
+            endIndex: Number
+        }],
+        default: []
+    })
+    mentions: Mention[];
 }
 
 

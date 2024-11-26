@@ -27,24 +27,29 @@ export class CommentService {
         let targetManga = null;
         let targetChapter = null;
 
-        if (mangaId) {
-            targetManga = await this.mangaModel.findById(mangaId);
-            if (!targetManga) {
-                throw new HttpException('MANGA.NOT_FOUND', HttpStatus.NOT_FOUND);
-            }
-        }
-
         if (chapterId) {
             targetChapter = await this.chapterModel.findById(chapterId);
             if (!targetChapter) {
                 throw new HttpException('CHAPTER.NOT_FOUND', HttpStatus.NOT_FOUND);
             }
+            targetManga = await this.mangaModel.findById(targetChapter.manga);
+            if (!targetManga) {
+                throw new HttpException('MANGA.NOT_FOUND', HttpStatus.NOT_FOUND);
+            }
+        } 
+        else if (mangaId) {
+            targetManga = await this.mangaModel.findById(mangaId);
+            if (!targetManga) {
+                throw new HttpException('MANGA.NOT_FOUND', HttpStatus.NOT_FOUND);
+            }
+        } else {
+            throw new HttpException('COMMENT.INVALID_TARGET', HttpStatus.BAD_REQUEST);
         }
 
         const comment = new this.commentModel({
             user: userId,
             content,
-            manga: mangaId,
+            manga: targetManga._id,
             chapter: chapterId
         });
 
@@ -54,9 +59,10 @@ export class CommentService {
                 throw new HttpException('COMMENT.PARENT_NOT_FOUND', HttpStatus.NOT_FOUND);
             }
 
-            const rootCommentId = parentComment.parentComment ? parentComment.parentComment : parentComment._id;
-            const rootComment = await this.commentModel.findById(rootCommentId);
-            
+            const rootComment = parentComment.parentComment ? 
+                await this.commentModel.findById(parentComment.parentComment) 
+                : parentComment;
+        
             comment.parentComment = rootComment;
 
             if (replyToUserId) {
@@ -65,14 +71,17 @@ export class CommentService {
                     throw new HttpException('USER.NOT_FOUND', HttpStatus.NOT_FOUND);
                 }
                 comment.replyToUser = replyToUser;
-                comment.content = `@${replyToUser.name} ${content}`;
+                comment.content = `${replyToUser.name} ${content}`;
+                comment.mentions = [{
+                    userId: replyToUser,
+                    username: replyToUser.name,
+                    startIndex: 0,
+                    endIndex: replyToUser.name.length
+                }];
             }
 
             const savedComment = await comment.save();
             
-            if (!rootComment.replies) {
-                rootComment.replies = [];
-            }
             rootComment.replies.push(savedComment);
             await rootComment.save();
 
@@ -89,9 +98,9 @@ export class CommentService {
             user.comments.push(savedComment);
             await user.save();
 
-            return await this.commentModel.findById(savedComment._id)
-                .populate('user', 'name avatarUrl')
-                .populate('replyToUser', 'name')
+            return this.commentModel.findById(savedComment._id)
+                .populate('user', '_id name avatarUrl')
+                .populate('replyToUser', '_id name')
                 .lean()
                 .exec();
         }
@@ -111,35 +120,59 @@ export class CommentService {
         user.comments.push(savedComment);
         await user.save();
 
-        return await this.commentModel.findById(savedComment._id)
-            .populate('user', 'name avatarUrl')
+        return this.commentModel.findById(savedComment._id)
+            .populate('user', '_id name avatarUrl')
+            .populate('replyToUser', '_id name')
             .lean()
             .exec();
     }
 
     async getCommentsByManga(mangaId: string): Promise<Comment[]> {
         return this.commentModel.find({ manga: mangaId, parentComment: null })
-            .populate('user', 'name avatarUrl')
+            .populate('user', '_id name avatarUrl') 
             .populate({
                 path: 'replies',
-                populate: [
-                    { path: 'user', select: 'name avatarUrl' },
-                    { path: 'replyToUser', select: 'name' }
-                ]
+                select: '_id',
             })
+            .populate('mentions.userId', '_id name')
+            .sort({ createdAt: -1 });
+    }
+    
+    async getCommentsByChapter(chapterId: string): Promise<Comment[]> {
+        return this.commentModel.find({ chapter: chapterId, parentComment: null })
+            .populate('user', '_id name avatarUrl')
+            .populate({
+                path: 'replies',
+                select: '_id',
+            })
+            .populate('mentions.userId', '_id name')
             .sort({ createdAt: -1 });
     }
 
-    async getCommentsByChapter(chapterId: string): Promise<Comment[]> {
-        return this.commentModel.find({ chapter: chapterId, parentComment: null })
-            .populate('user', 'name avatarUrl')
-            .populate({
-                path: 'replies',
-                populate: [
-                    { path: 'user', select: 'name avatarUrl' },
-                    { path: 'replyToUser', select: 'name' }
-                ]
+    async getCommentReplies(commentId: string): Promise<Comment[]> {
+        const comment = await this.commentModel.findById(commentId);
+        if (!comment) {
+            throw new HttpException('COMMENT.NOT_FOUND', HttpStatus.NOT_FOUND);
+        }
+        
+        if (comment.chapter) {
+            return this.commentModel.find({ 
+                parentComment: commentId,
+                chapter: comment.chapter 
             })
+            .populate('user', '_id name avatarUrl')
+            .populate('replyToUser', '_id name')
+            .populate('mentions.userId', '_id name')
+            .sort({ createdAt: -1 });
+        }
+
+        return this.commentModel.find({ 
+            parentComment: commentId,
+            manga: comment.manga 
+        })
+            .populate('user', '_id name avatarUrl')
+            .populate('replyToUser', '_id name')
+            .populate('mentions.userId', '_id name')
             .sort({ createdAt: -1 });
     }
 }

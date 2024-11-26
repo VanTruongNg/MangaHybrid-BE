@@ -6,6 +6,8 @@ import { ResetPassworDTO } from './dto/reset-password.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { Role } from 'src/auth/schemas/role.enum';  
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { UserProfileDTO } from './dto/user-profile.dto';
+import { UpdateReadingHistoryDTO } from './dto/update-reading-history.dto';
 
 @ApiTags('User')
 @Controller('user') 
@@ -24,23 +26,9 @@ export class UserController {
     @Get('/me')
     @Auth()
     @ApiOperation({ summary: 'Lấy thông tin người dùng' })
-    async getUserById(@Req() req: any): Promise<User> {
-        const userId = req.user._id
-        return this.userService.findById(userId)
-    }
-
-    @Post('/follow/:id')
-    @Auth({ requireVerified: true })
-    @ApiOperation({ summary: 'Theo dõi người dùng' })
-    async followUser (@Req() req: any, @Param('id') followUserId: string) {
-        const userId = req.user._id
-
-        if (!followUserId) {
-            throw new NotFoundException("User not found")
-        }
-
-        await this.userService.followUser(userId, followUserId)
-        return { message: `Theo dõi thành công`}
+    async getUserById(@Req() req: any): Promise<UserProfileDTO> {
+        const userId = req.user._id;
+        return this.userService.findById(userId);
     }
 
     @Patch('/update-avatar')
@@ -62,80 +50,140 @@ export class UserController {
         return { message: "Thay đổi mật khẩu thành công"}
     }
 
-    @Post('/like-manga/:mangaId')
     @Auth({ requireVerified: true })
-    @HttpCode(200)
-    @ApiOperation({ summary: 'Thích manga' })
-    async likeManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
+    @Patch('reading-history')
+    @ApiOperation({ summary: 'Cập nhật lịch sử đọc của người dùng' })
+    @HttpCode(HttpStatus.NO_CONTENT)
+    async updateReadingHistory(
+        @Body() updateReadingHistoryDTO: UpdateReadingHistoryDTO,
+        @Req() req: any
+    ): Promise<void> {
         try {
-            const user = req.user._id;
-            await this.userService.likeManga(user, mangaId);
-            return { message: 'Manga đã được thích thành công' };
+            const userId = req.user._id;
+            const { mangaId, chapterId } = updateReadingHistoryDTO;
+            await this.userService.updateReadingHistory(userId, mangaId, chapterId);
         } catch (error) {
             throw error instanceof HttpException ? error : new HttpException(`Lỗi hệ thống`, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    @Delete('/unlike-manga/:mangaId')
     @Auth({ requireVerified: true })
-    @ApiOperation({ summary: 'Ngừng thích manga' })
-    async unlikeManga (@Req() req: any, @Param('mangaId') mangaId: string): Promise<{message: string}> {
-        try {
-            const user = req.user._id;
-            await this.userService.unlikeManga(user, mangaId);
-            return { message: 'Ngừng thích Manga thành công' };
-        } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException(`Lỗi hệ thống`, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+    @Post('manga/:mangaId/follow')
+    async followManga(
+        @Req() req,
+        @Param('mangaId') mangaId: string
+    ) {
+        const userId = req.user._id;
+        return this.userService.toggleUserInteraction(
+            userId,
+            mangaId,
+            'follow',
+            'manga'
+        );
+    }
+    
+    @Auth({ requireVerified: true })
+    @Post('manga/:mangaId/unfollow')
+    async unfollowManga(
+        @Req() req,
+        @Param('mangaId') mangaId: string
+    ) {
+        const userId = req.user._id;
+        return this.userService.toggleUserInteraction(
+            userId,
+            mangaId,
+            'unfollow',
+            'manga'
+        );
     }
 
-    @Post('/dislike-manga/:mangaId')
     @Auth({ requireVerified: true })
-    @HttpCode(200)
-    @ApiOperation({ summary: 'Không thích manga' })
-    async dislikeManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
-        try {
-            const user = req.user._id;
-            await this.userService.dislikeManga(user, mangaId);
-            return { message: 'Dislike Manga' };
-        } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException(`Lỗi hệ thống`, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+    @Post('manga/:mangaId/like')
+    async likeManga(
+        @Req() req,
+        @Param('mangaId') mangaId: string
+    ) {
+        const userId = req.user._id;
+        return this.userService.toggleUserInteraction(
+            userId,
+            mangaId,
+            'like',
+            'manga'
+        );
     }
 
-    @Delete('/undislike-manga/:mangaId')
     @Auth({ requireVerified: true })
-    @ApiOperation({ summary: 'Không thích manga' })
-    async undislikeManga (@Req() req: any, @Param('mangaId') mangaId: string): Promise<{message: string}> {
-        const user = req.user._id;
-        await this.userService.undislikeManga(user, mangaId);
-        return { message: 'Undislike Manga' };
+    @Post('manga/:mangaId/unlike')
+    async unlikeManga(
+        @Req() req,
+        @Param('mangaId') mangaId: string
+    ) {
+        const userId = req.user._id;
+        return this.userService.toggleUserInteraction(
+            userId,
+            mangaId,
+            'unlike',
+            'manga'
+        );
     }
 
-    @Post('/follow-manga/:mangaId')
     @Auth({ requireVerified: true })
-    @HttpCode(200)
-    @ApiOperation({ summary: 'Theo dõi manga' })
-    async followManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
-        try {
-            const user = req.user._id;
-            await this.userService.followManga(user, mangaId);
-            return { message: 'Theo dõi manga thành công' };
-        } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException(`Lỗi hệ thống`, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+    @Post('manga/:mangaId/dislike')
+    async dislikeManga(
+        @Req() req,
+        @Param('mangaId') mangaId: string
+    ) {
+        const userId = req.user._id;
+        return this.userService.toggleUserInteraction(
+            userId,
+            mangaId,
+            'dislike',
+            'manga'
+        );
     }
 
-    @Delete('/unfollow-manga/:mangaId') 
     @Auth({ requireVerified: true })
-    @ApiOperation({ summary: 'Hủy theo dõi manga' })
-    async unfollowManga(@Req() req: any, @Param('mangaId') mangaId: string): Promise<{ message: string }> {
-        try {
-            const user = req.user._id;
-            await this.userService.unfollowManga(user, mangaId);
-            return { message: 'Đã hủy theo dõi manga' };
-        } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException(`Lỗi hệ thống`, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+    @Post('manga/:mangaId/undislike')
+    async undislikeManga(
+        @Req() req,
+        @Param('mangaId') mangaId: string
+    ) {
+        const userId = req.user._id;
+        return this.userService.toggleUserInteraction(
+            userId,
+            mangaId,
+            'undislike',
+            'manga'
+        );
+    }
+
+    @Auth({ requireVerified: true })
+    @Post('follow/:userId')
+    async followUser(
+        @Req() req,
+        @Param('userId') targetUserId: string
+    ) {
+        const userId = req.user._id;
+        return this.userService.toggleUserInteraction(
+            userId,
+            targetUserId,
+            'follow',
+            'user'
+        );
+    }
+
+    @Auth({ requireVerified: true })
+    @Post('unfollow/:userId')
+    async unfollowUser(
+        @Req() req,
+        @Param('userId') targetUserId: string
+    ) {
+        const userId = req.user._id;
+        return this.userService.toggleUserInteraction(
+            userId,
+            targetUserId,
+            'unfollow',
+            'user'
+        );
     }
 }
