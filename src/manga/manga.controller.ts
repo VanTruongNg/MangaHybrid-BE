@@ -72,7 +72,7 @@ export class MangaController {
         @Body() createMangaDTO: CreateMangaDTO,
         @UploadedFiles(new ParseFilePipe({
             validators: [
-                new FileTypeValidator({ fileType: 'image/jpeg|image/png' }),
+                new FileTypeValidator({ fileType: /(image\/jpeg|image\/png)$/ }),
                 new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 })
             ]
         })) files: { coverImg: Express.Multer.File[], bannerImg: Express.Multer.File[] }
