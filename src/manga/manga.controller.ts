@@ -64,18 +64,20 @@ export class MangaController {
     ], {
         limits: {
             fileSize: 5 * 1024 * 1024
+        },
+        fileFilter: (req, file, callback) => {
+            if (!file.mimetype.match(/^image\/(jpeg|png)$/)) {
+                callback(new BadRequestException('Chỉ chấp nhận file ảnh định dạng JPG hoặc PNG'), false);
+                return;
+            }
+            callback(null, true);
         }
     }))
     @Post('/create-manga')
     async createManga(
         @Req() req: any,
         @Body() createMangaDTO: CreateMangaDTO,
-        @UploadedFiles(new ParseFilePipe({
-            validators: [
-                new FileTypeValidator({ fileType: /(image\/jpeg|image\/png)$/ }),
-                new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 })
-            ]
-        })) files: { coverImg: Express.Multer.File[], bannerImg: Express.Multer.File[] }
+        @UploadedFiles() files: { coverImg: Express.Multer.File[], bannerImg: Express.Multer.File[] }
     ): Promise<Manga> {
         if (!files.coverImg?.[0] || !files.bannerImg?.[0]) {
             throw new BadRequestException('Hãy thêm đầy đủ ảnh bìa và ảnh banner!')
