@@ -87,17 +87,33 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   @SubscribeMessage('sendPublicMessage')
-  async handlePublicMessage(client: Socket, content: string) {
+  async handlePublicMessage(client: Socket, payload: {content: string, tempId: string}) {
     try {
+      if (!payload.content?.trim()) {
+        return client.emit('messageError', {
+          tempId: payload.tempId,
+          error: 'CHAT_ROOM.EMPTY_MESSAGE'
+        });
+      }
+
       const message = await this.chatRoomService.addPublicMessage(
         client.data.userId,
-        content
+        payload.content
       );
+
+      client.emit('messageAck', {
+        tempId: payload.tempId,
+        message: message
+      });
       
       const roomId = this.chatRoomService.getPublicRoomId();
-      this.server.to(roomId).emit('newMessage', message);
+      client.broadcast.to(roomId).emit('newMessage', message);
+
     } catch (error) {
-      client.emit('error', { message: 'Không thể gửi tin nhắn' });
+      client.emit('messageError', {
+        tempId: payload.tempId,
+        error: error.message || 'CHAT_ROOM.SEND_FAILED'
+      });
     }
   }
 }
