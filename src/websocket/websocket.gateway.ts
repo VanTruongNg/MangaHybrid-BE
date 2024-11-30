@@ -1,3 +1,5 @@
+import { Inject } from '@nestjs/common';
+import { forwardRef } from '@nestjs/common';
 import { WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { WsAuthGuard } from 'src/auth/guards/ws-auth.guard';
@@ -15,6 +17,7 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   constructor(
     private wsAuthGuard: WsAuthGuard,
     private chatRoomService: ChatRoomService,
+    @Inject(forwardRef(() => NotificationService))
     private notificationService: NotificationService
   ) {}
 
