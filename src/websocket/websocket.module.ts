@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { WebsocketGateway } from './websocket.gateway';
 import { AuthModule } from 'src/auth/auth.module';
 import { ChatRoomModule } from 'src/chat-room/chat-room.module';
@@ -8,7 +8,7 @@ import { NotificationModule } from 'src/notification/notification.module';
   imports: [
     ChatRoomModule,
     AuthModule,
-    NotificationModule
+    forwardRef(() => NotificationModule)
   ],
   providers: [WebsocketGateway],
   exports: [WebsocketGateway]
