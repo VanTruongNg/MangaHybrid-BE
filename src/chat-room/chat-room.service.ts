@@ -5,6 +5,7 @@ import { Model } from 'mongoose';
 import { ChatRoomType } from './interface/chat.interface';
 import { Message } from './schema/message.schema';
 import { User } from 'src/auth/schemas/user.schema';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ChatRoomService implements OnModuleInit {
@@ -39,33 +40,36 @@ export class ChatRoomService implements OnModuleInit {
     }
 
     async addPublicMessage(senderId: string, content: string): Promise<Message> {
-        const sender = await this.userModel.findById(senderId).select('_id name avatarUrl');
+        const sender = await this.userModel.findById(senderId)
+          .select('_id name avatarUrl');
         if (!sender) {
-            throw new HttpException('CHAT_ROOM.SENDER_NOT_FOUND', HttpStatus.NOT_FOUND);
+          throw new HttpException('CHAT_ROOM.SENDER_NOT_FOUND', HttpStatus.NOT_FOUND);
         }
     
         const room = await this.chatRoomModel.findById(this.publicRoomId);
         if (!room) {
-            throw new HttpException('CHAT_ROOM.ROOM_NOT_FOUND', HttpStatus.NOT_FOUND);
+          throw new HttpException('CHAT_ROOM.ROOM_NOT_FOUND', HttpStatus.NOT_FOUND);
         }
     
         const message = {
-            roomId: room,
-            sender: sender,
-            content,
-            readBy: [sender]
+          id: randomUUID(),
+          roomId: room,
+          sender: sender,
+          content,
+          readBy: [sender],
+          createdAt: new Date()
         } as Message;
     
         this.publicMessage.push(message);
     
         if (this.publicMessage.length > this.MAX_PUBLIC_MESSAGES) {
-            this.publicMessage.shift();
+          this.publicMessage.shift();
         }
     
         await this.chatRoomModel.findByIdAndUpdate(this.publicRoomId, {
-            lastMessage: content,
-            lastSender: sender,
-            lastMessageAt: new Date()
+          lastMessage: content,
+          lastSender: sender,
+          lastMessageAt: new Date()
         });
     
         return message;
