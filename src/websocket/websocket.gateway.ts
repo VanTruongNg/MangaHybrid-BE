@@ -3,6 +3,7 @@ import { Server, Socket } from 'socket.io';
 import { WsAuthGuard } from 'src/auth/guards/ws-auth.guard';
 import { ChatRoomService } from 'src/chat-room/chat-room.service';
 import { NotificationResponse } from 'src/notification/interface/notification.res';
+import { NotificationService } from 'src/notification/notification.service';
 
 @WebSocketGateway()
 export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -13,7 +14,8 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   constructor(
     private wsAuthGuard: WsAuthGuard,
-    private chatRoomService: ChatRoomService
+    private chatRoomService: ChatRoomService,
+    private notificationService: NotificationService
   ) {}
 
   async handleConnection(client: Socket) {
@@ -38,6 +40,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
         
         const messages = this.chatRoomService.getPublicMessage();
         client.emit('previousMessages', messages);
+
+        const unreadNotifications = this.notificationService.getUnreadNotifications(userId);
+        client.emit('unreadNotifications', unreadNotifications);
         
         console.log(`User ${userId} connected and joined public room`);
       }
