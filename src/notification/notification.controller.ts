@@ -16,6 +16,13 @@ export class NotificationController {
     return this.notificationService.getUserNotifications(req.user._id);
   }
 
+  @Get('unread')
+  @Auth()
+  @ApiOperation({ summary: 'Lấy tất cả thông báo chưa đọc của người dùng' })
+  async getUnreadNotifications(@Req() req: any): Promise<NotificationResponse[]> {
+    return this.notificationService.getUnreadNotifications(req.user._id);
+  }
+
   @Patch(':id/read')
   @Auth()
   @ApiOperation({ summary: 'Đánh dấu thông báo đã đọc' })

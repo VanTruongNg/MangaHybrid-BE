@@ -33,25 +33,37 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       }
   
       const userId = client.data.userId;
-      if (userId) {
-        this.userSocketMap.set(userId, client.id);
-        client.join(userId);
-        
-        const publicRoomId = this.chatRoomService.getPublicRoomId();
-        await client.join(publicRoomId);
-        await this.chatRoomService.addParticipant(userId);
-        
-        const messages = this.chatRoomService.getPublicMessage();
-        client.emit('previousMessages', messages);
-
-        const unreadNotifications = this.notificationService.getUnreadNotifications(userId);
-        client.emit('unreadNotifications', unreadNotifications);
-        
-        console.log(`User ${userId} connected and joined public room`);
+      if (!userId) {
+        client.disconnect();
+        return;
       }
+
+      this.userSocketMap.set(userId, client.id);
+
+      client.join(userId);
+      const [publicRoomId, messages, unreadNotifications] = await Promise.all([
+        (async () => {
+          const roomId = this.chatRoomService.getPublicRoomId();
+          await client.join(roomId);
+          await this.chatRoomService.addParticipant(userId);
+          return roomId;
+        })(),
+        
+        this.chatRoomService.getPublicMessage(),
+        
+        this.notificationService.getUnreadNotifications(userId)
+      ]);
+  
+      client.emit('previousMessages', messages);
+      client.emit('unreadNotifications', unreadNotifications);
+  
+      console.log(`User ${userId} connected and joined public room ${publicRoomId}`);
+  
     } catch (error) {
-      console.error('Connection error:', error);
-      client.disconnect();
+      if (client.connected) {
+        client.emit('error', { message: 'Có lỗi khi kết nối' });
+        client.disconnect();
+      }
     }
   }
 
