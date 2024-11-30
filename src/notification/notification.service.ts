@@ -36,11 +36,26 @@ export class NotificationService {
           recipients: userId
         })
         .sort({ createdAt: -1 })
-        .populate('manga', 'title coverImg')
-        .populate('chapter', 'number')
+        .populate('manga', '_id title coverImg')
+        .populate('chapter', '_id number')
         .lean();
     
         return notifications.map(notification => this.formatNotification(notification, userId));
+    }
+
+    async getUnreadNotifications(userId: string): Promise<NotificationResponse[]> {
+      const notifications = await this.notificationModel.find({
+        recipients: userId,
+        readBy: { $ne: userId }
+      })
+      .sort({ createdAt: -1 })
+      .populate('manga', '_id title coverImg')
+      .populate('chapter', '_id number')
+      .lean();
+  
+      return notifications.map(notification => 
+        this.formatNotification(notification, userId)
+      );
     }
 
     async markAsRead(notificationId: string, userId: string) {
