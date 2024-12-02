@@ -83,7 +83,10 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   sendNotificationToUser(userId: string, notification: NotificationResponse) {
-    this.server.to(userId).emit('notification', notification);
+    const socketId = this.userSocketMap.get(userId);
+    if (socketId) {
+      this.server.to(socketId).emit('notification', notification);
+    }
   }
 
   @SubscribeMessage('sendPublicMessage')
@@ -113,6 +116,113 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       client.emit('messageError', {
         tempId: payload.tempId,
         error: error.message || 'CHAT_ROOM.SEND_FAILED'
+      });
+    }
+  }
+
+  @SubscribeMessage('sendPrivateMessage') 
+  async handlePrivateMessage(client: Socket, data: any) {
+    try {
+      const roomId = data.roomId;
+      const content = data.content;
+      const tempId = data.tempId;
+
+      if (!content?.trim()) {
+        return client.emit('messageError', {
+          tempId,
+          error: 'Message content cannot be empty'
+        });
+      }
+
+      const message = await this.chatRoomService.addPrivateMessage(
+        roomId,
+        client.data.userId,
+        content
+      );
+
+      client.emit('messageAck', {
+        tempId,
+        message
+      });
+
+      const room = await this.chatRoomService.getPrivateRoom(roomId, client.data.userId);
+      
+      const otherParticipants = (room.participants as any[])
+        .filter(p => p._id?.toString() !== client.data.userId);
+        
+      otherParticipants.forEach(participant => {
+        const receiverSocketId = this.userSocketMap.get(participant._id.toString());
+        if (receiverSocketId) {
+          const receiverSocket = this.server.sockets.sockets.get(receiverSocketId);
+          const isInRoom = receiverSocket?.rooms?.has(roomId);
+
+          if (isInRoom) {
+            client.broadcast.to(roomId).emit('newPrivateMessage', message);
+          } else {
+            this.server.to(receiverSocketId).emit('newPrivateMessage', message);
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      client.emit('messageError', {
+        tempId: data.tempId,
+        error: error.message || 'Failed to send message'
+      });
+    }
+  }
+
+  @SubscribeMessage('openPrivateRoom')
+  async handleOpenPrivateRoom(client: Socket, data: any) {
+    try {
+      const roomId = data.roomId;
+      
+      await this.chatRoomService.getPrivateRoom(roomId, client.data.userId);
+      
+      client.join(roomId);
+      
+      const messages = await this.chatRoomService.getPrivateMessages(roomId, client.data.userId);
+      
+      client.emit('openedPrivateRoom', {
+        roomId,
+        messages
+      });
+
+    } catch (error) {
+      console.error('Error opening room:', error);
+      client.emit('error', {
+        message: error.message || 'Failed to open private room'
+      });
+    }
+  }
+
+  @SubscribeMessage('markMessageRead')
+  async handleMarkMessageRead(client: Socket, messageId: string) {
+    try {
+      await this.chatRoomService.markMessageAsRead(messageId, client.data.userId);
+    } catch (error) {
+      client.emit('error', {
+        message: error.message || 'Failed to mark message as read'
+      });
+    } 
+  }
+
+  @SubscribeMessage('leavePrivateRoom')
+  async handleLeavePrivateRoom(client: Socket, data: any) {
+    try {
+      const roomId = data.roomId;
+      
+      client.leave(roomId);
+      
+      client.emit('leftPrivateRoom', {
+        roomId
+      });
+
+    } catch (error) {
+      console.error('Error leaving room:', error);
+      client.emit('error', {
+        message: error.message || 'Failed to leave private room'
       });
     }
   }

@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MessageSchema } from './schema/message.schema';
 import { WebsocketModule } from 'src/websocket/websocket.module';
 import { AuthModule } from 'src/auth/auth.module';
+import { ChatRoomController } from './chat-room.controller';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuthModule } from 'src/auth/auth.module';
     AuthModule
   ],
   providers: [ChatRoomService],
-  exports: [ChatRoomService, MongooseModule]
+  exports: [ChatRoomService, MongooseModule],
+  controllers: [ChatRoomController]
 })
 export class ChatRoomModule {}
