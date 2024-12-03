@@ -399,4 +399,16 @@ export class AuthService {
         await user.save();
         return true;
     }
+
+    async logout(userId: string): Promise<void> {
+        try {
+            await this.refreshTokenModel.findOneAndUpdate(
+                { user: userId },
+                { isRevoked: true },
+                { sort: { createdAt: -1 } }
+            );
+        } catch (error) {
+            throw new HttpException('Lỗi khi đăng xuất', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
