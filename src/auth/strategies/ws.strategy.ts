@@ -46,8 +46,7 @@ export class WsStrategy {
   private extractToken(client: Socket): string {
     const token = 
       client.handshake.auth.token ||  
-      client.handshake.headers.authorization?.split(' ')[1] ||
-      client.handshake.headers.cookie?.split('access_token=')[1];
+      client.handshake.headers.authorization?.split(' ')[1];
 
     if (!token) {
       throw new WsException('Token không tìm thấy');
