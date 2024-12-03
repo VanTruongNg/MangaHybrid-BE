@@ -18,7 +18,8 @@ export class AuthController {
             httpOnly: true,
             secure: true,
             sameSite: 'none' as const,
-            path: '/'
+            path: '/',
+            domain: '.up.railway.app'
         };
     }
 
