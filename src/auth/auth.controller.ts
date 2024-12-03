@@ -1,12 +1,12 @@
 import { AuthService } from './auth.service';
-import { Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, HttpCode } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, HttpStatus, Param, Post, HttpCode, Req } from '@nestjs/common';
 import { SignUpDTO } from './dto/signup.dto';
 import { LoginDTO } from './dto/login.dto';
 import { ResetPasswordDTO, VerifyOtpDTO } from './dto/reset-password.dto';
-import { Platform } from 'src/utils/platform';
 import { RefreshTokenDTO } from './dto/refreshToken.dto';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GoogleLoginDTO } from './dto/google-login.dto';
+import { Auth } from './decorators/auth.decorator';
 @Controller('auth')
 @ApiTags('Auth')
 export class AuthController {
@@ -190,6 +190,24 @@ export class AuthController {
             return { message: 'RESET_PASSWORD.Thay đổi mật khẩu thất bại' };
         } catch (error) {
             throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Post('/logout')
+    @Auth()
+    @ApiOperation({ summary: 'Đăng xuất' })
+    async logout(
+        @Req() req: any
+    ): Promise<{ message: string }> {
+        try {
+            await this.authService.logout(req.user._id);
+            return {
+                message: 'Đăng xuất thành công'
+            };
+        } catch (error) {
+            throw error instanceof HttpException 
+                ? error 
+                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }
