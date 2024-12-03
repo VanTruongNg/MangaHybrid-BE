@@ -21,8 +21,12 @@ export class User{
     })
     email: string;
 
-    @Prop({ required: true })
-    password?: string;
+    @Prop({ 
+        required: function(this: User) {
+            return !this.provider || this.provider === 'local';
+        }
+    })
+    password: string;
 
     @Prop({
         type: String,
