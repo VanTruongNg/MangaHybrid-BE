@@ -42,14 +42,16 @@ export class AuthController {
                     httpOnly: true,
                     secure: true,
                     sameSite: 'none',
-                    maxAge: 15 * 60 * 1000
+                    maxAge: 15 * 60 * 1000,
+                    domain: 'up.railway.app'
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
                     httpOnly: true, 
                     secure: true,
                     sameSite: 'none',
-                    maxAge: 24 * 60 * 60 * 1000
+                    maxAge: 24 * 60 * 60 * 1000,
+                    domain: 'up.railway.app'
                 });
 
                 return { message: 'Đăng nhập thành công' };
@@ -80,14 +82,16 @@ export class AuthController {
                     httpOnly: true,
                     secure: true,
                     sameSite: 'none',
-                    maxAge: 15 * 60 * 1000
+                    maxAge: 15 * 60 * 1000,
+                    domain: 'up.railway.app'
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
                     httpOnly: true,
                     secure: true,
                     sameSite: 'none',
-                    maxAge: 24 * 60 * 60 * 1000
+                    maxAge: 24 * 60 * 60 * 1000,
+                    domain: 'up.railway.app'
                 });
     
                 return { message: 'Đăng nhập Google thành công' };
@@ -119,14 +123,16 @@ export class AuthController {
                     httpOnly: true,
                     secure: true,
                     sameSite: 'none',
-                    maxAge: 15 * 60 * 1000
+                    maxAge: 15 * 60 * 1000,
+                    domain: 'up.railway.app'
                 });
 
                 response.cookie('refresh_token', tokens.refreshToken, {
                     httpOnly: true,
                     secure: true,
                     sameSite: 'none',
-                    maxAge: 24 * 60 * 60 * 1000
+                    maxAge: 24 * 60 * 60 * 1000,
+                    domain: 'up.railway.app'
                 });
 
                 return { message: 'Token đã được làm mới' };
