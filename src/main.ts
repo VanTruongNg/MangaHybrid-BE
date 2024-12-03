@@ -26,11 +26,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  app.use(cookieParser({
-    secure: true,
-    sameSite: 'none',
-    domain: '.up.railway.app'
-  }))
+  app.use(cookieParser())
 
   app.setGlobalPrefix('api/v1')
 
