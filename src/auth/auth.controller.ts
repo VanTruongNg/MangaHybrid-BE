@@ -43,7 +43,8 @@ export class AuthController {
                     secure: true,
                     sameSite: 'none',
                     maxAge: 15 * 60 * 1000,
-                    domain: 'up.railway.app'
+                    path: '/',
+                    domain: 'skillful-adaptation-production.up.railway.app'
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
@@ -51,7 +52,8 @@ export class AuthController {
                     secure: true,
                     sameSite: 'none',
                     maxAge: 24 * 60 * 60 * 1000,
-                    domain: 'up.railway.app'
+                    path: '/',
+                    domain: 'skillful-adaptation-production.up.railway.app'
                 });
 
                 return { message: 'Đăng nhập thành công' };
@@ -83,7 +85,8 @@ export class AuthController {
                     secure: true,
                     sameSite: 'none',
                     maxAge: 15 * 60 * 1000,
-                    domain: 'up.railway.app'
+                    path: '/',
+                    domain: 'skillful-adaptation-production.up.railway.app'
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
@@ -91,7 +94,8 @@ export class AuthController {
                     secure: true,
                     sameSite: 'none',
                     maxAge: 24 * 60 * 60 * 1000,
-                    domain: 'up.railway.app'
+                    path: '/',
+                    domain: 'skillful-adaptation-production.up.railway.app'
                 });
     
                 return { message: 'Đăng nhập Google thành công' };
@@ -124,7 +128,8 @@ export class AuthController {
                     secure: true,
                     sameSite: 'none',
                     maxAge: 15 * 60 * 1000,
-                    domain: 'up.railway.app'
+                    path: '/',
+                    domain: 'skillful-adaptation-production.up.railway.app'
                 });
 
                 response.cookie('refresh_token', tokens.refreshToken, {
@@ -132,7 +137,8 @@ export class AuthController {
                     secure: true,
                     sameSite: 'none',
                     maxAge: 24 * 60 * 60 * 1000,
-                    domain: 'up.railway.app'
+                    path: '/',
+                    domain: 'skillful-adaptation-production.up.railway.app'
                 });
 
                 return { message: 'Token đã được làm mới' };

@@ -12,7 +12,7 @@ async function bootstrap() {
     methods: process.env.ALLOWED_METHODS.split(','),
     allowedHeaders: process.env.ALLOWED_HEADERS.split(','),
     credentials: true,
-    exposedHeaders: ['Set-Cookie']
+    exposedHeaders: ['Set-Cookie', 'set-cookie']
   })
 
   const config = new DocumentBuilder()
