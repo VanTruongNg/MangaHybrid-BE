@@ -13,6 +13,15 @@ import { GoogleLoginDTO } from './dto/google-login.dto';
 export class AuthController {
     constructor ( private authService: AuthService) {}
 
+    private getCookieOptions() {
+        return {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none' as const,
+            path: '/'
+        };
+    }
+
     @Post('/signup')
     @ApiOperation({ summary: 'Đăng ký tài khoản' })
     async signUp (@Body() signUpDTO: SignUpDTO): Promise<{message: string}> {
@@ -28,30 +37,25 @@ export class AuthController {
 
     @Post('/login')
     @ApiOperation({ summary: 'Đăng nhập tài khoản' })
-    async login (
-        @Body() loginDTO: LoginDTO, 
-        @Headers('x-platform') platform: Platform, 
+    async login(
+        @Body() loginDTO: LoginDTO,
+        @Headers('x-platform') platform: Platform,
         @Res({ passthrough: true }) response: Response
-    ): Promise<{accessToken?: string, refreshToken?: string, message: string}> 
-    {
+    ): Promise<{ accessToken?: string; refreshToken?: string; message: string }> {
         try {
-            const token = await this.authService.login(loginDTO)
+            const token = await this.authService.login(loginDTO);
 
             if (platform === Platform.WEB) {
-                response.cookie('access_token', token.accessToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 15 * 60 * 1000,
-                    path: '/'
-                });
+                const cookieOptions = this.getCookieOptions();
                 
+                response.cookie('access_token', token.accessToken, {
+                    ...cookieOptions,
+                    maxAge: 15 * 60 * 1000
+                });
+
                 response.cookie('refresh_token', token.refreshToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 24 * 60 * 60 * 1000,
-                    path: '/'
+                    ...cookieOptions,
+                    maxAge: 24 * 60 * 60 * 1000
                 });
 
                 return { message: 'Đăng nhập thành công' };
@@ -61,9 +65,11 @@ export class AuthController {
                 accessToken: token.accessToken,
                 refreshToken: token.refreshToken,
                 message: 'Đăng nhập thành công'
-            }
+            };
         } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
+            throw error instanceof HttpException
+                ? error
+                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -78,20 +84,15 @@ export class AuthController {
             const token = await this.authService.handleGoogleLogin(googleLoginDTO.accessToken)
 
             if (platform === Platform.WEB) {
+                const cookieOptions = this.getCookieOptions();
                 response.cookie('access_token', token.accessToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 15 * 60 * 1000,
-                    path: '/'
+                    ...cookieOptions,
+                    maxAge: 15 * 60 * 1000
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 24 * 60 * 60 * 1000,
-                    path: '/'
+                    ...cookieOptions,
+                    maxAge: 24 * 60 * 60 * 1000
                 });
     
                 return { message: 'Đăng nhập Google thành công' };
@@ -118,21 +119,15 @@ export class AuthController {
             const tokens = await this.authService.refreshToken(refreshTokenDto.refreshToken)
 
             if (platform === Platform.WEB) {
-                
+                const cookieOptions = this.getCookieOptions();
                 response.cookie('access_token', tokens.accessToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 15 * 60 * 1000,
-                    path: '/'
+                    ...cookieOptions,
+                    maxAge: 15 * 60 * 1000
                 });
                 
                 response.cookie('refresh_token', tokens.refreshToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 24 * 60 * 60 * 1000,
-                    path: '/'
+                    ...cookieOptions,
+                    maxAge: 24 * 60 * 60 * 1000
                 });
 
                 return { message: 'Token đã được làm mới' };
