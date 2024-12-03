@@ -17,9 +17,9 @@ async function bootstrap() {
       }
     },
     methods: process.env.ALLOWED_METHODS.split(','),
-    allowedHeaders: process.env.ALLOWED_HEADERS.split(','),
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'x-platform'],
     credentials: true,
-    exposedHeaders: ['Set-Cookie', 'set-cookie']
+    exposedHeaders: ['Set-Cookie']
   })
 
   const config = new DocumentBuilder()

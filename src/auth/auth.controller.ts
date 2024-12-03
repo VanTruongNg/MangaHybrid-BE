@@ -40,18 +40,18 @@ export class AuthController {
             if (platform === Platform.WEB) {
                 response.cookie('access_token', token.accessToken, {
                     httpOnly: true,
-                    secure: true,
-                    sameSite: 'none',
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
                     maxAge: 15 * 60 * 1000,
-                    path: '/',
+                    path: '/'
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
-                    httpOnly: true, 
-                    secure: true,
-                    sameSite: 'none',
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
                     maxAge: 24 * 60 * 60 * 1000,
-                    path: '/',
+                    path: '/'
                 });
 
                 return { message: 'Đăng nhập thành công' };
@@ -80,18 +80,18 @@ export class AuthController {
             if (platform === Platform.WEB) {
                 response.cookie('access_token', token.accessToken, {
                     httpOnly: true,
-                    secure: true,
-                    sameSite: 'none',
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
                     maxAge: 15 * 60 * 1000,
-                    path: '/',
+                    path: '/'
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
                     httpOnly: true,
-                    secure: true,
-                    sameSite: 'none',
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
                     maxAge: 24 * 60 * 60 * 1000,
-                    path: '/',
+                    path: '/'
                 });
     
                 return { message: 'Đăng nhập Google thành công' };
@@ -121,18 +121,18 @@ export class AuthController {
                 
                 response.cookie('access_token', tokens.accessToken, {
                     httpOnly: true,
-                    secure: true,
-                    sameSite: 'none',
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
                     maxAge: 15 * 60 * 1000,
-                    path: '/',
+                    path: '/'
                 });
-
+                
                 response.cookie('refresh_token', tokens.refreshToken, {
                     httpOnly: true,
-                    secure: true,
-                    sameSite: 'none',
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
                     maxAge: 24 * 60 * 60 * 1000,
-                    path: '/',
+                    path: '/'
                 });
 
                 return { message: 'Token đã được làm mới' };
