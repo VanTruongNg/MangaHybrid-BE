@@ -40,15 +40,15 @@ export class AuthController {
             if (platform === Platform.WEB) {
                 response.cookie('access_token', token.accessToken, {
                     httpOnly: true,
-                    secure: false,
-                    sameSite: 'lax',
+                    secure: true,
+                    sameSite: 'none',
                     maxAge: 15 * 60 * 1000
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
                     httpOnly: true, 
-                    secure: false,
-                    sameSite: 'lax',
+                    secure: true,
+                    sameSite: 'none',
                     maxAge: 24 * 60 * 60 * 1000
                 });
 
@@ -78,15 +78,15 @@ export class AuthController {
             if (platform === Platform.WEB) {
                 response.cookie('access_token', token.accessToken, {
                     httpOnly: true,
-                    secure: false,
-                    sameSite: 'lax',
+                    secure: true,
+                    sameSite: 'none',
                     maxAge: 15 * 60 * 1000
                 });
                 
                 response.cookie('refresh_token', token.refreshToken, {
                     httpOnly: true,
-                    secure: false,
-                    sameSite: 'lax',
+                    secure: true,
+                    sameSite: 'none',
                     maxAge: 24 * 60 * 60 * 1000
                 });
     
@@ -117,15 +117,15 @@ export class AuthController {
                 
                 response.cookie('access_token', tokens.accessToken, {
                     httpOnly: true,
-                    secure: false,
-                    sameSite: 'lax',
+                    secure: true,
+                    sameSite: 'none',
                     maxAge: 15 * 60 * 1000
                 });
 
                 response.cookie('refresh_token', tokens.refreshToken, {
                     httpOnly: true,
-                    secure: false,
-                    sameSite: 'lax',
+                    secure: true,
+                    sameSite: 'none',
                     maxAge: 24 * 60 * 60 * 1000
                 });
 

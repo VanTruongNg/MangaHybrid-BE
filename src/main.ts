@@ -12,6 +12,7 @@ async function bootstrap() {
     methods: process.env.ALLOWED_METHODS.split(','),
     allowedHeaders: process.env.ALLOWED_HEADERS.split(','),
     credentials: true,
+    exposedHeaders: ['Set-Cookie']
   })
 
   const config = new DocumentBuilder()
@@ -25,7 +26,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  app.use(cookieParser())
+  app.use(cookieParser({
+    secure: true,
+    sameSite: 'none',
+    domain: '.up.railway.app'
+  }))
 
   app.setGlobalPrefix('api/v1')
 
