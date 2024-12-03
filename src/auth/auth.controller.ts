@@ -1,10 +1,9 @@
 import { AuthService } from './auth.service';
-import { Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, HttpCode, Res } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, HttpCode } from '@nestjs/common';
 import { SignUpDTO } from './dto/signup.dto';
 import { LoginDTO } from './dto/login.dto';
 import { ResetPasswordDTO, VerifyOtpDTO } from './dto/reset-password.dto';
 import { Platform } from 'src/utils/platform';
-import { Response } from 'express';
 import { RefreshTokenDTO } from './dto/refreshToken.dto';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GoogleLoginDTO } from './dto/google-login.dto';
@@ -12,16 +11,6 @@ import { GoogleLoginDTO } from './dto/google-login.dto';
 @ApiTags('Auth')
 export class AuthController {
     constructor ( private authService: AuthService) {}
-
-    private getCookieOptions() {
-        return {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'none' as const,
-            path: '/',
-            domain: '.up.railway.app'
-        };
-    }
 
     @Post('/signup')
     @ApiOperation({ summary: 'Đăng ký tài khoản' })
@@ -39,111 +28,59 @@ export class AuthController {
     @Post('/login')
     @ApiOperation({ summary: 'Đăng nhập tài khoản' })
     async login(
-        @Body() loginDTO: LoginDTO,
-        @Headers('x-platform') platform: Platform,
-        @Res({ passthrough: true }) response: Response
-    ): Promise<{ accessToken?: string; refreshToken?: string; message: string }> {
+        @Body() loginDTO: LoginDTO
+    ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
         try {
             const token = await this.authService.login(loginDTO);
-
-            if (platform === Platform.WEB) {
-                const cookieOptions = this.getCookieOptions();
-                
-                response.cookie('access_token', token.accessToken, {
-                    ...cookieOptions,
-                    maxAge: 15 * 60 * 1000
-                });
-
-                response.cookie('refresh_token', token.refreshToken, {
-                    ...cookieOptions,
-                    maxAge: 24 * 60 * 60 * 1000
-                });
-
-                return { message: 'Đăng nhập thành công' };
-            }
-
             return {
                 accessToken: token.accessToken,
                 refreshToken: token.refreshToken,
                 message: 'Đăng nhập thành công'
             };
         } catch (error) {
-            throw error instanceof HttpException
-                ? error
+            throw error instanceof HttpException 
+                ? error 
                 : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     @Post('/google')
     @ApiOperation({ summary: 'Đăng nhập Google' })
-    async googleLogin (
-        @Body() googleLoginDTO: GoogleLoginDTO, 
-        @Headers('x-platform') platform: Platform, 
-        @Res({ passthrough: true }) response: Response
-    ): Promise<{accessToken?: string, refreshToken?: string, message: string}> {
+    async googleLogin(
+        @Body() googleLoginDTO: GoogleLoginDTO
+    ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
         try {
-            const token = await this.authService.handleGoogleLogin(googleLoginDTO.accessToken)
-
-            if (platform === Platform.WEB) {
-                const cookieOptions = this.getCookieOptions();
-                response.cookie('access_token', token.accessToken, {
-                    ...cookieOptions,
-                    maxAge: 15 * 60 * 1000
-                });
-                
-                response.cookie('refresh_token', token.refreshToken, {
-                    ...cookieOptions,
-                    maxAge: 24 * 60 * 60 * 1000
-                });
-    
-                return { message: 'Đăng nhập Google thành công' };
-            }
-
+            const token = await this.authService.handleGoogleLogin(googleLoginDTO.accessToken);
             return {
                 accessToken: token.accessToken,
                 refreshToken: token.refreshToken,
                 message: 'Đăng nhập Google thành công'
             };
         } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR)
+            throw error instanceof HttpException 
+                ? error 
+                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     @Post('/refresh-token')
     @ApiOperation({ summary: 'Làm mới token' })
     async refreshToken(
-        @Headers('x-platform') platform: Platform,
-        @Body() refreshTokenDto: RefreshTokenDTO,
-        @Res({ passthrough: true }) response: Response
-    ): Promise<{accessToken?: string, refreshToken?: string, message: string}> {
+        @Body() refreshTokenDto: RefreshTokenDTO
+    ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
         try {
-            const tokens = await this.authService.refreshToken(refreshTokenDto.refreshToken)
-
-            if (platform === Platform.WEB) {
-                const cookieOptions = this.getCookieOptions();
-                response.cookie('access_token', tokens.accessToken, {
-                    ...cookieOptions,
-                    maxAge: 15 * 60 * 1000
-                });
-                
-                response.cookie('refresh_token', tokens.refreshToken, {
-                    ...cookieOptions,
-                    maxAge: 24 * 60 * 60 * 1000
-                });
-
-                return { message: 'Token đã được làm mới' };
-            }
-
+            const tokens = await this.authService.refreshToken(refreshTokenDto.refreshToken);
             return {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken,
                 message: 'Token đã được làm mới'
             };
         } catch (error) {
-            throw error instanceof HttpException ? error : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
+            throw error instanceof HttpException 
+                ? error 
+                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
 
     @Get('email/verify/:email/:token')
     @ApiOperation({ summary: 'Xác thực email' })

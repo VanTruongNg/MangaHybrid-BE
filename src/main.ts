@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import * as cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
@@ -17,23 +16,19 @@ async function bootstrap() {
       }
     },
     methods: process.env.ALLOWED_METHODS.split(','),
-    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'x-platform'],
-    credentials: true,
-    exposedHeaders: ['Set-Cookie']
-  })
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
+    credentials: true
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Manga API')
     .setDescription('API documentation cho ứng dụng đọc truyện manga')
     .setVersion('1.0')
     .addBearerAuth()
-    .addCookieAuth('access_token')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
-
-  app.use(cookieParser())
 
   app.setGlobalPrefix('api/v1')
 
