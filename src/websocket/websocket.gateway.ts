@@ -56,12 +56,10 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   
       client.emit('previousMessages', messages);
       client.emit('unreadNotifications', unreadNotifications);
-  
-      console.log(`User ${userId} connected and joined public room ${publicRoomId}`);
+
   
     } catch (error) {
       if (client.connected) {
-        client.emit('error', { message: 'Có lỗi khi kết nối' });
         client.disconnect();
       }
     }
@@ -74,7 +72,6 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     if (userId) {
       this.userSocketMap.delete(userId);
       this.chatRoomService.removeParticipant(userId);
-      console.log(`User ${userId} disconnected`);
     }
   }
 
@@ -165,7 +162,6 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       });
 
     } catch (error) {
-      console.error('Error sending message:', error);
       client.emit('messageError', {
         tempId: data.tempId,
         error: error.message || 'Failed to send message'
@@ -190,7 +186,6 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       });
 
     } catch (error) {
-      console.error('Error opening room:', error);
       client.emit('error', {
         message: error.message || 'Failed to open private room'
       });
@@ -220,8 +215,7 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       });
 
     } catch (error) {
-      console.error('Error leaving room:', error);
-      client.emit('error', {
+        client.emit('error', {
         message: error.message || 'Failed to leave private room'
       });
     }
