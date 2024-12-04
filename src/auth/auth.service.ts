@@ -3,19 +3,15 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from 'src/auth/schemas/user.schema';
 import * as bcrypt from 'bcryptjs'
-import * as nodemailer from 'nodemailer'
 import { JwtService } from '@nestjs/jwt';
 import { SignUpDTO } from './dto/signup.dto';
 import { LoginDTO } from './dto/login.dto';
 import { Token } from './schemas/token.schema';
 import { EmailVerification } from './schemas/email-verification.schema';
-import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PasswordReset } from './schemas/password-reset.schema';
 import { FogottenPassword } from './interface/resetpassword.interface';
-import { OAuth2Client } from 'google-auth-library';
-import { Platform } from 'src/utils/platform';
 
 @Injectable()
 export class AuthService {
