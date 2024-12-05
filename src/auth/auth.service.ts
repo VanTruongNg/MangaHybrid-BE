@@ -16,6 +16,8 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
+    private readonly validDeviceIds: string[];
+
     constructor(
         @InjectModel(User.name)
         private readonly userModel: Model<User>,
@@ -28,7 +30,18 @@ export class AuthService {
         private readonly jwtService: JwtService,
         @InjectQueue('email') private readonly emailQueue: Queue,
         private readonly configService: ConfigService
-    ){}
+    ) {
+        this.validDeviceIds = [
+            this.configService.get<string>('WEB_DEVICE_ID'),
+            this.configService.get<string>('MOBILE_DEVICE_ID')
+        ];
+    }
+
+    private validateDeviceId(deviceId: string) {
+        if (!this.validDeviceIds.includes(deviceId)) {
+            throw new UnauthorizedException('Device ID không hợp lệ');
+        }
+    }
 
     async signUp(signUpDTO: SignUpDTO): Promise<boolean> {
         const { name, email, password, confirmPassword } = signUpDTO;
@@ -84,6 +97,7 @@ export class AuthService {
     }
 
     async login(loginDTO: LoginDTO, deviceId: string): Promise<{accessToken: string, refreshToken: string}> {
+        this.validateDeviceId(deviceId);
         const { email, password } = loginDTO;
         const user = await this.userModel.findOne({ email });
         
@@ -126,6 +140,7 @@ export class AuthService {
     }
 
     async handleGoogleLogin(accessToken: string, deviceId: string): Promise<{accessToken: string, refreshToken: string}> {
+        this.validateDeviceId(deviceId);
         try {
             const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                 headers: { 
@@ -190,6 +205,7 @@ export class AuthService {
     }
 
     async refreshToken(refreshToken: string, deviceId: string): Promise<{accessToken: string, refreshToken: string}> {
+        this.validateDeviceId(deviceId);
         if (!deviceId) {
             throw new UnauthorizedException("LOGIN.Device ID không được để trống!");
         }
@@ -419,6 +435,7 @@ export class AuthService {
     }
 
     async logout(userId: string, deviceId: string): Promise<void> {
+        this.validateDeviceId(deviceId);
         try {
             await this.refreshTokenModel.findOneAndUpdate(
                 { user: userId, deviceId },
