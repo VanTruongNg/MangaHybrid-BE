@@ -41,23 +41,26 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       this.userSocketMap.set(userId, client.id);
 
       client.join(userId);
-      const [publicRoomId, messages, unreadNotifications] = await Promise.all([
-        (async () => {
-          const roomId = this.chatRoomService.getPublicRoomId();
-          await client.join(roomId);
-          await this.chatRoomService.addParticipant(userId);
-          return roomId;
-        })(),
-        
+      const [publicRoomId, rooms, messages, unreadNotifications] = await Promise.all([
+        this.chatRoomService.getPublicRoomId(),
+        this.chatRoomService.getUserPrivateRooms(userId),
         this.chatRoomService.getPublicMessage(),
-        
         this.notificationService.getUnreadNotifications(userId)
       ]);
-  
-      client.emit('previousMessages', messages);
-      client.emit('unreadNotifications', unreadNotifications);
 
-  
+      await client.join(publicRoomId);
+      await this.chatRoomService.addParticipant(userId);
+
+      for (const room of rooms) {
+        await client.join((room as any)._id.toString());
+      }
+
+      client.emit('initializeSocket', {
+        rooms,
+        publicMessages: messages,
+        unreadNotifications
+      });
+
     } catch (error) {
       if (client.connected) {
         client.disconnect();
@@ -120,52 +123,42 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('sendPrivateMessage') 
   async handlePrivateMessage(client: Socket, data: any) {
     try {
-      const roomId = data.roomId;
-      const content = data.content;
-      const tempId = data.tempId;
+        const receiverId = data.receiverId;
+        const content = data.content;
+        const tempId = data.tempId;
 
-      if (!content?.trim()) {
-        return client.emit('messageError', {
-          tempId,
-          error: 'Message content cannot be empty'
-        });
-      }
-
-      const message = await this.chatRoomService.addPrivateMessage(
-        roomId,
-        client.data.userId,
-        content
-      );
-
-      client.emit('messageAck', {
-        tempId,
-        message
-      });
-
-      const room = await this.chatRoomService.getPrivateRoom(roomId, client.data.userId);
-      
-      const otherParticipants = (room.participants as any[])
-        .filter(p => p._id?.toString() !== client.data.userId);
-        
-      otherParticipants.forEach(participant => {
-        const receiverSocketId = this.userSocketMap.get(participant._id.toString());
-        if (receiverSocketId) {
-          const receiverSocket = this.server.sockets.sockets.get(receiverSocketId);
-          const isInRoom = receiverSocket?.rooms?.has(roomId);
-
-          if (isInRoom) {
-            client.broadcast.to(roomId).emit('newPrivateMessage', message);
-          } else {
-            this.server.to(receiverSocketId).emit('newPrivateMessage', message);
-          }
+        if (!content?.trim()) {
+            return client.emit('messageError', {
+                tempId,
+                error: 'Message content cannot be empty'
+            });
         }
-      });
+
+        const { room, message } = await this.chatRoomService.addPrivateMessage(
+            client.data.userId,
+            receiverId,
+            content
+        );
+
+        client.emit('messageAck', {
+            tempId,
+            message,
+            room
+        });
+
+        const receiverSocketId = this.userSocketMap.get(receiverId);
+        if (receiverSocketId) {
+            this.server.to(receiverSocketId).emit('newPrivateMessage', {
+                message,
+                room
+            });
+        }
 
     } catch (error) {
-      client.emit('messageError', {
-        tempId: data.tempId,
-        error: error.message || 'Failed to send message'
-      });
+        client.emit('messageError', {
+            tempId: data.tempId,
+            error: error.message || 'Failed to send message'
+        });
     }
   }
 
@@ -219,5 +212,13 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
         message: error.message || 'Failed to leave private room'
       });
     }
+  }
+
+  @SubscribeMessage('roomUpdated')
+  async handleRoomUpdate(client: Socket) {
+    const rooms = await this.chatRoomService.getUserPrivateRooms(client.data.userId);
+    client.emit('roomUpdate', {
+        rooms
+    });
   }
 }
