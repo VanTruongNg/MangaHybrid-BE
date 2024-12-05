@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Model } from 'mongoose';
 import { WebsocketGateway } from 'src/websocket/websocket.gateway';
@@ -13,6 +13,10 @@ export class NotificationService {
     ) {}
 
     private formatNotification(notification: any, userId: string): NotificationResponse {
+        const readByIds = notification.readBy?.map(id => 
+            id.toString ? id.toString() : id
+        ) || [];
+
         return {
             id: notification._id,
             type: notification.type,
@@ -26,7 +30,7 @@ export class NotificationService {
                 id: notification.chapter._id,
                 number: notification.chapter.number
             } : undefined,
-            isRead: notification.readBy.includes(userId),
+            isRead: readByIds.includes(userId.toString()),
             createdAt: notification.createdAt
         }
     }
@@ -59,10 +63,20 @@ export class NotificationService {
     }
 
     async markAsRead(notificationId: string, userId: string) {
+        if (!notificationId) {
+            throw new BadRequestException('Notification ID is required');
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(notificationId)) {
+            throw new BadRequestException('Invalid notification ID');
+        }
+
         return this.notificationModel.findByIdAndUpdate(
-          notificationId,
-          { $addToSet: { readBy: userId } },
-          { new: true }
+            notificationId,
+            {
+                $addToSet: { readBy: userId }
+            },
+            { new: true }
         );
     }
     
