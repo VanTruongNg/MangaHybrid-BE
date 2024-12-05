@@ -16,7 +16,7 @@ async function bootstrap() {
       }
     },
     methods: process.env.ALLOWED_METHODS.split(','),
-    allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
+    allowedHeaders: process.env.ALLOWED_HEADERS.split(','),
     credentials: true
   });
 
