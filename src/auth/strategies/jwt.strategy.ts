@@ -40,16 +40,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             }, HttpStatus.UNAUTHORIZED);
         }
 
-        const token = await this.tokenModel.findOne({ user: user._id }).sort({ createdAt: -1}) 
-
-        if (token?.isRevoked) {
-            throw new HttpException({
-                statusCode: HttpStatus.UNAUTHORIZED,
-                message: 'Token đã bị vô hiệu hoá và không còn được sử dụng nữa. Hãy đăng nhập lại!',
-                code: "AUTH.TOKEN_REVOKED"
-            }, HttpStatus.UNAUTHORIZED);
-        }
-
         return user;
     }
 }
