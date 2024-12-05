@@ -8,7 +8,7 @@ export enum NotificationType {
   MANGA_REJECTED = 'MANGA_REJECTED'
 }
 
-@Schema({ timestamps: true, expires: '2d' })
+@Schema({ timestamps: true })
 export class Notification {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Manga' })
     manga: mongoose.Types.ObjectId;
@@ -35,3 +35,4 @@ export class Notification {
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 NotificationSchema.index({ recipients: 1, createdAt: -1 });
+NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 604800 });
