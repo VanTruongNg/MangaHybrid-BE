@@ -12,6 +12,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PasswordReset } from './schemas/password-reset.schema';
 import { FogottenPassword } from './interface/resetpassword.interface';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +27,7 @@ export class AuthService {
         private readonly passwordResetModel: Model<PasswordReset>,
         private readonly jwtService: JwtService,
         @InjectQueue('email') private readonly emailQueue: Queue,
+        private readonly configService: ConfigService
     ){}
 
     async signUp(signUpDTO: SignUpDTO): Promise<boolean> {
@@ -55,7 +57,7 @@ export class AuthService {
         const emailToken = await this.createEmailToken(email);
         if (!emailToken) {
             await user.deleteOne();
-            throw new HttpException('REGISTRATION.Tạo mã xác thực thất bại', HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new HttpException('REGISTRATION.To mã xác thực thất bại', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     
         try {
@@ -81,39 +83,49 @@ export class AuthService {
         }
     }
 
-    async login (loginDTO: LoginDTO): Promise<{accessToken: string, refreshToken: string}> {
+    async login(loginDTO: LoginDTO, deviceId: string): Promise<{accessToken: string, refreshToken: string}> {
+        const { email, password } = loginDTO;
+        const user = await this.userModel.findOne({ email });
         
-        const { email, password } = loginDTO
-
-        const user = await this.userModel.findOne({ email })
-
         if (!user) {
-            throw new UnauthorizedException("LOGIN.Email hoặc mật khẩu không chính xác!")
+            throw new UnauthorizedException("LOGIN.Email hoặc mật khẩu không chính xác!");
         }
 
-        const isPasswordMatched = await bcrypt.compare(password, user.password)
-
+        const isPasswordMatched = await bcrypt.compare(password, user.password);
         if (!isPasswordMatched) {
-            throw new UnauthorizedException("LOGIN.Email hoặc mật khẩu không chính xác!")
+            throw new UnauthorizedException("LOGIN.Email hoặc mật khẩu không chính xác!");
         }
 
-        const refreshToken = this.jwtService.sign({ id: user._id, email: user.email, type: 'refresh'},{
-            secret: process.env.REFRESH_TOKEN_SECRET,
-            expiresIn: process.env.REFRESH_TOKEN_EXPIRES
-        })
+        const refreshToken = this.jwtService.sign(
+            { id: user._id, email: user.email, type: 'refresh', deviceId },
+            {
+                secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+                expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES')
+            }
+        );
 
         await this.refreshTokenModel.create({
             token: refreshToken,
             user: user._id,
-            expiresAt: new Date(Date.now() + 24*60*60*1000)
+            deviceId,
+            expiresAt: new Date(
+                Date.now() + 
+                parseInt(this.configService.get<string>('REFRESH_TOKEN_EXPIRATION'))
+            )
         });
 
-        const accessToken = this.jwtService.sign({ id: user._id, email: user.email })
+        const accessToken = this.jwtService.sign(
+            { id: user._id, email: user.email },
+            {
+                secret: this.configService.get<string>('JWT_SECRET'),
+                expiresIn: this.configService.get<string>('JWT_EXPIRES')
+            }
+        );
 
-        return { accessToken, refreshToken }
+        return { accessToken, refreshToken };
     }
 
-    async handleGoogleLogin(accessToken: string): Promise<{accessToken: string, refreshToken: string}> {
+    async handleGoogleLogin(accessToken: string, deviceId: string): Promise<{accessToken: string, refreshToken: string}> {
         try {
             const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                 headers: { 
@@ -148,20 +160,20 @@ export class AuthService {
             }
     
             const refreshToken = this.jwtService.sign(
-                { id: user._id, email: user.email, type: 'refresh' },
+                { id: user._id, email: user.email, type: 'refresh', deviceId },
                 {
-                    secret: process.env.REFRESH_TOKEN_SECRET,
-                    expiresIn: process.env.REFRESH_TOKEN_EXPIRES
+                    secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+                    expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES')
                 }
             );
     
             await this.refreshTokenModel.create({
                 token: refreshToken,
                 user: user._id,
+                deviceId,
                 expiresAt: new Date(Date.now() + 24*60*60*1000)
             });
     
-            // Tạo access token sau
             const newAccessToken = this.jwtService.sign({ id: user._id, email: user.email });
 
             return { accessToken: newAccessToken, refreshToken };
@@ -177,46 +189,56 @@ export class AuthService {
         return await this.userModel.findOne({ email });
     }
 
-    async refreshToken(refreshToken: string): Promise<{accessToken: string, refreshToken: string}> {
-        const tokenDoc = await this.refreshTokenModel.findOne({ token: refreshToken });
+    async refreshToken(refreshToken: string, deviceId: string): Promise<{accessToken: string, refreshToken: string}> {
+        if (!deviceId) {
+            throw new UnauthorizedException("LOGIN.Device ID không được để trống!");
+        }
+
+        const tokenDoc = await this.refreshTokenModel.findOne({ 
+            token: refreshToken,
+            deviceId: deviceId
+        });
         
         if (!tokenDoc || tokenDoc.isRevoked) {
             throw new UnauthorizedException("LOGIN.Refresh Token không hợp lệ hoặc đã bị thu hồi!");
         }
-    
+
         if (new Date() > tokenDoc.expiresAt) {
             throw new ForbiddenException("LOGIN.Refresh Token đã hết hạn.");
         }
-    
+
         const user = await this.userModel.findById(tokenDoc.user);
         if (!user) {
             throw new UnauthorizedException("LOGIN.Người dùng không tồn tại");
         }
-    
+
         const newRefreshToken = this.jwtService.sign(
-            { id: user._id, email: user.email, type: 'refresh' },
+            { id: user._id, email: user.email, type: 'refresh', deviceId },
             {
-                secret: process.env.REFRESH_TOKEN_SECRET,
-                expiresIn: process.env.REFRESH_TOKEN_EXPIRES
+                secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+                expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES')
             }
         );
-    
-        const updatedToken = await this.refreshTokenModel.findOneAndUpdate(
+
+        await this.refreshTokenModel.findOneAndUpdate(
             { token: refreshToken },
             {
                 token: newRefreshToken,
-                expiresAt: new Date(Date.now() + 24*60*60*1000),
-                $set: { updatedAt: new Date() }
-            },
-            { new: true }
+                expiresAt: new Date(
+                    Date.now() + 
+                    parseInt(this.configService.get<string>('REFRESH_TOKEN_EXPIRATION'))
+                )
+            }
         );
-    
-        if (!updatedToken) {
-            throw new HttpException('Không thể cập nhật refresh token', HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    
-        const accessToken = this.jwtService.sign({id: user._id, email: user.email});
-    
+
+        const accessToken = this.jwtService.sign(
+            { id: user._id, email: user.email },
+            {
+                secret: this.configService.get<string>('JWT_SECRET'),
+                expiresIn: this.configService.get<string>('JWT_EXPIRES')
+            }
+        );
+
         return { accessToken, refreshToken: newRefreshToken };
     }
 
@@ -396,10 +418,10 @@ export class AuthService {
         return true;
     }
 
-    async logout(userId: string): Promise<void> {
+    async logout(userId: string, deviceId: string): Promise<void> {
         try {
             await this.refreshTokenModel.findOneAndUpdate(
-                { user: userId },
+                { user: userId, deviceId },
                 { isRevoked: true },
                 { sort: { createdAt: -1 } }
             );

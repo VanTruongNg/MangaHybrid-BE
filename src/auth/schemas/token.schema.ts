@@ -21,7 +21,10 @@ export class Token {
     user: User;
 
     @Prop({ default: false })
-    isRevoked: boolean
+    isRevoked: boolean;
+
+    @Prop({ required: true })
+    deviceId: string;
 
     @Prop({
         type: Date,
