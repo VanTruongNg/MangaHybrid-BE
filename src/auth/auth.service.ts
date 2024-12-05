@@ -110,11 +110,13 @@ export class AuthService {
             throw new UnauthorizedException("LOGIN.Email hoặc mật khẩu không chính xác!");
         }
 
+        const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+
         const refreshToken = this.jwtService.sign(
             { id: user._id, email: user.email, type: 'refresh', deviceId },
             {
-                secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-                expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES')
+                secret: this.configService.get<string>('REFRESH_TOKEN'),
+                expiresIn: this.configService.get<string>('REFRESH_TOKEN_EXPIRES')
             }
         );
 
@@ -122,19 +124,10 @@ export class AuthService {
             token: refreshToken,
             user: user._id,
             deviceId,
-            expiresAt: new Date(
-                Date.now() + 
-                parseInt(this.configService.get<string>('REFRESH_TOKEN_EXPIRATION'))
-            )
+            expiresAt: new Date(Date.now() + ONE_DAY_IN_MS)
         });
 
-        const accessToken = this.jwtService.sign(
-            { id: user._id, email: user.email },
-            {
-                secret: this.configService.get<string>('JWT_SECRET'),
-                expiresIn: this.configService.get<string>('JWT_EXPIRES')
-            }
-        );
+        const accessToken = this.jwtService.sign({ id: user._id, email: user.email });
 
         return { accessToken, refreshToken };
     }
@@ -173,12 +166,14 @@ export class AuthService {
                     provider: 'google'
                 });
             }
-    
+
+            const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+
             const refreshToken = this.jwtService.sign(
                 { id: user._id, email: user.email, type: 'refresh', deviceId },
                 {
-                    secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-                    expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES')
+                    secret: this.configService.get<string>('REFRESH_TOKEN'),
+                    expiresIn: this.configService.get<string>('REFRESH_TOKEN_EXPIRES')
                 }
             );
     
@@ -186,7 +181,7 @@ export class AuthService {
                 token: refreshToken,
                 user: user._id,
                 deviceId,
-                expiresAt: new Date(Date.now() + 24*60*60*1000)
+                expiresAt: new Date(Date.now() + ONE_DAY_IN_MS)
             });
     
             const newAccessToken = this.jwtService.sign({ id: user._id, email: user.email });
@@ -231,8 +226,8 @@ export class AuthService {
         const newRefreshToken = this.jwtService.sign(
             { id: user._id, email: user.email, type: 'refresh', deviceId },
             {
-                secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-                expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES')
+                secret: this.configService.get<string>('REFRESH_TOKEN'),
+                expiresIn: this.configService.get<string>('REFRESH_TOKEN_EXPIRES')
             }
         );
 
@@ -249,13 +244,7 @@ export class AuthService {
             }
         );
 
-        const accessToken = this.jwtService.sign(
-            { id: user._id, email: user.email },
-            {
-                secret: this.configService.get<string>('JWT_SECRET'),
-                expiresIn: this.configService.get<string>('JWT_EXPIRES')
-            }
-        );
+        const accessToken = this.jwtService.sign({ id: user._id, email: user.email });
 
         return { accessToken, refreshToken: newRefreshToken };
     }

@@ -64,11 +64,16 @@ export class AuthController {
     @Post('/refresh-token')
     @ApiOperation({ summary: 'Làm mới token' })
     async refreshToken(
-        @Body() refreshTokenDto: RefreshTokenDTO
+        @Body() refreshTokenDto: RefreshTokenDTO,
+        @Headers('device-id') deviceId: string
     ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
+        if (!deviceId) {
+            throw new BadRequestException('Device ID is required');
+        }
+
         const tokens = await this.authService.refreshToken(
             refreshTokenDto.refreshToken,
-            refreshTokenDto.deviceId
+            deviceId
         );
         return {
             accessToken: tokens.accessToken,
