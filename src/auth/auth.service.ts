@@ -236,14 +236,16 @@ export class AuthService {
             }
         );
 
+        const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+
         await this.refreshTokenModel.findOneAndUpdate(
-            { token: refreshToken },
+            { 
+                token: refreshToken,
+                deviceId: deviceId 
+            },
             {
                 token: newRefreshToken,
-                expiresAt: new Date(
-                    Date.now() + 
-                    parseInt(this.configService.get<string>('REFRESH_TOKEN_EXPIRATION'))
-                )
+                expiresAt: new Date(Date.now() + ONE_DAY_IN_MS)
             }
         );
 
