@@ -1,5 +1,5 @@
 import { AuthService } from './auth.service';
-import { Body, Controller, Get, HttpException, HttpStatus, Param, Post, HttpCode, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, HttpStatus, Param, Post, HttpCode, Req, Headers, BadRequestException } from '@nestjs/common';
 import { SignUpDTO } from './dto/signup.dto';
 import { LoginDTO } from './dto/login.dto';
 import { ResetPasswordDTO, VerifyOtpDTO } from './dto/reset-password.dto';
@@ -28,39 +28,37 @@ export class AuthController {
     @Post('/login')
     @ApiOperation({ summary: 'Đăng nhập tài khoản' })
     async login(
-        @Body() loginDTO: LoginDTO
+        @Body() loginDTO: LoginDTO,
+        @Headers('device-id') deviceId: string
     ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
-        try {
-            const token = await this.authService.login(loginDTO);
-            return {
-                accessToken: token.accessToken,
-                refreshToken: token.refreshToken,
-                message: 'Đăng nhập thành công'
-            };
-        } catch (error) {
-            throw error instanceof HttpException 
-                ? error 
-                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
+        if (!deviceId) {
+            throw new BadRequestException('Device ID is required');
         }
+        
+        const token = await this.authService.login(loginDTO, deviceId);
+        return {
+            accessToken: token.accessToken,
+            refreshToken: token.refreshToken,
+            message: 'Đăng nhập thành công'
+        };
     }
 
     @Post('/google')
     @ApiOperation({ summary: 'Đăng nhập Google' })
     async googleLogin(
-        @Body() googleLoginDTO: GoogleLoginDTO
+        @Body() googleLoginDTO: GoogleLoginDTO,
+        @Headers('device-id') deviceId: string
     ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
-        try {
-            const token = await this.authService.handleGoogleLogin(googleLoginDTO.accessToken);
-            return {
-                accessToken: token.accessToken,
-                refreshToken: token.refreshToken,
-                message: 'Đăng nhập Google thành công'
-            };
-        } catch (error) {
-            throw error instanceof HttpException 
-                ? error 
-                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
+        if (!deviceId) {
+            throw new BadRequestException('Device ID is required');
         }
+
+        const token = await this.authService.handleGoogleLogin(googleLoginDTO.accessToken, deviceId);
+        return {
+            accessToken: token.accessToken,
+            refreshToken: token.refreshToken,
+            message: 'Đăng nhập Google thành công'
+        };
     }
 
     @Post('/refresh-token')
@@ -68,18 +66,15 @@ export class AuthController {
     async refreshToken(
         @Body() refreshTokenDto: RefreshTokenDTO
     ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
-        try {
-            const tokens = await this.authService.refreshToken(refreshTokenDto.refreshToken);
-            return {
-                accessToken: tokens.accessToken,
-                refreshToken: tokens.refreshToken,
-                message: 'Token đã được làm mới'
-            };
-        } catch (error) {
-            throw error instanceof HttpException 
-                ? error 
-                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+        const tokens = await this.authService.refreshToken(
+            refreshTokenDto.refreshToken,
+            refreshTokenDto.deviceId
+        );
+        return {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            message: 'Token đã được làm mới'
+        };
     }
 
     @Get('email/verify/:email/:token')
@@ -197,17 +192,16 @@ export class AuthController {
     @Auth()
     @ApiOperation({ summary: 'Đăng xuất' })
     async logout(
-        @Req() req: any
+        @Req() req: any,
+        @Headers('device-id') deviceId: string
     ): Promise<{ message: string }> {
-        try {
-            await this.authService.logout(req.user._id);
-            return {
-                message: 'Đăng xuất thành công'
-            };
-        } catch (error) {
-            throw error instanceof HttpException 
-                ? error 
-                : new HttpException('Lỗi hệ thống', HttpStatus.INTERNAL_SERVER_ERROR);
+        if (!deviceId) {
+            throw new BadRequestException('Device ID is required');
         }
+
+        await this.authService.logout(req.user._id, deviceId);
+        return {
+            message: 'Đăng xuất thành công'
+        };
     }
 }
