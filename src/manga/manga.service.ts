@@ -7,6 +7,7 @@ import { AwsService } from 'src/aws/aws.service';
 import { Genre } from 'src/genres/schemas/genre.schema';
 import { User } from 'src/auth/schemas/user.schema';
 import { ApprovalStatus } from './schemas/status.enum';
+import * as sharp from 'sharp';
 
 @Injectable()
 export class MangaService {
@@ -301,17 +302,41 @@ export class MangaService {
         const sanitizedTitle = savedManga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
         
         try {
-            const coverFileName = `cover-${savedManga._id.toString()}-${sanitizedTitle}`
-            const coverImgUrl = await this.awsService.uploadFile(files.cover, coverFileName)
-            savedManga.coverImg = coverImgUrl
+            // Resize cover image
+            const resizedCover = await sharp(files.cover.buffer)
+                .resize(600, 800, { // Thay đổi kích thước cover
+                    fit: 'contain',
+                    background: { r: 255, g: 255, b: 255, alpha: 1 }
+                })
+                .jpeg({ quality: 80 })
+                .toBuffer();
 
-            const bannerFileName = `banner-${savedManga._id.toString()}-${sanitizedTitle}`
-            const bannerImgUrl = await this.awsService.uploadFile(files.banner, bannerFileName)
-            savedManga.bannerImg = bannerImgUrl
+            // Resize banner image
+            const resizedBanner = await sharp(files.banner.buffer)
+                .resize(1920, 1080, { // Thay đổi kích thước banner
+                    fit: 'cover'
+                })
+                .jpeg({ quality: 80 })
+                .toBuffer();
 
-            return await savedManga.save()
+            // Upload resized images
+            const coverFileName = `cover-${savedManga._id.toString()}-${sanitizedTitle}`;
+            const coverImgUrl = await this.awsService.uploadFile({
+                ...files.cover,
+                buffer: resizedCover
+            }, coverFileName);
+            savedManga.coverImg = coverImgUrl;
+
+            const bannerFileName = `banner-${savedManga._id.toString()}-${sanitizedTitle}`;
+            const bannerImgUrl = await this.awsService.uploadFile({
+                ...files.banner,
+                buffer: resizedBanner
+            }, bannerFileName);
+            savedManga.bannerImg = bannerImgUrl;
+
+            return await savedManga.save();
         } catch (error) {
-            throw new InternalServerErrorException(`Upload file thất bại: ${error.message}`)
+            throw new InternalServerErrorException(`Upload file thất bại: ${error.message}`);
         }
     }
 
@@ -398,12 +423,27 @@ export class MangaService {
             throw new ConflictException(`Manga ${mangaId} chưa được duyệt`)
         }
 
-        const sanitizedTitle = manga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
-        const fileName = `banner-${manga._id.toString()}-${sanitizedTitle}`
+        try {
+            // Resize banner image
+            const resizedBanner = await sharp(file.buffer)
+                .resize(1920, 1080, { // Thay đổi kích thước banner
+                    fit: 'cover'
+                })
+                .jpeg({ quality: 80 })
+                .toBuffer();
 
-        const bannerImg = await this.awsService.uploadFile(file, fileName)
+            const sanitizedTitle = manga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '');
+            const fileName = `banner-${manga._id.toString()}-${sanitizedTitle}`;
 
-        manga.bannerImg = bannerImg
-        return await manga.save()
+            const bannerImg = await this.awsService.uploadFile({
+                ...file,
+                buffer: resizedBanner
+            }, fileName);
+
+            manga.bannerImg = bannerImg;
+            return await manga.save();
+        } catch (error) {
+            throw new InternalServerErrorException(`Upload file thất bại: ${error.message}`);
+        }
     }
 }
