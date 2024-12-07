@@ -111,6 +111,7 @@ export class MangaService {
                 $project: {
                     _id: '$mangaDetails._id',
                     title: '$mangaDetails.title',
+                    description: '$mangaDetails.description',
                     coverImg: '$mangaDetails.coverImg',
                     bannerImg: '$mangaDetails.bannerImg',
                     author: '$mangaDetails.author',
@@ -123,7 +124,7 @@ export class MangaService {
     
         if (!viewLogs.length) {
             return await this.mangaModel.find({ approvalStatus: ApprovalStatus.APPROVED })
-                .select('_id title coverImg bannerImg author rating view')
+                .select('_id title description coverImg bannerImg author rating view')
                 .sort({ view: -1 })
                 .limit(10)
                 .lean();
@@ -175,6 +176,7 @@ export class MangaService {
                 $project: {
                     _id: '$mangaDetails._id',
                     title: '$mangaDetails.title',
+                    description: '$mangaDetails.description',
                     coverImg: '$mangaDetails.coverImg',
                     bannerImg: '$mangaDetails.bannerImg',
                     author: '$mangaDetails.author',
@@ -187,7 +189,7 @@ export class MangaService {
     
         if (!viewLogs.length) {
             return await this.mangaModel.find({ approvalStatus: ApprovalStatus.APPROVED })
-                .select('_id title coverImg bannerImg author rating view')
+                .select('_id title description coverImg bannerImg author rating view')
                 .sort({ view: -1 })
                 .limit(10)
                 .lean();
@@ -227,6 +229,7 @@ export class MangaService {
                 $project: {
                     _id: 1,
                     title: 1,
+                    description: 1,
                     coverImg: 1,
                     bannerImg: 1,
                     author: 1,
@@ -252,6 +255,7 @@ export class MangaService {
                 $project: {
                     _id: 1,
                     title: 1,
+                    description: 1,
                     coverImg: 1,
                     bannerImg: 1,
                     author: 1,
