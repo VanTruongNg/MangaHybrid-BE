@@ -89,194 +89,127 @@ export class MangaService {
     }
 
     async findTopMangaByViewsToday(page: number, limit: number): Promise<PaginatedResult<Manga>> {
-        const skip = (page - 1) * limit;
         const today = new Date()
-        today.setUTCHours(0,0,0,0)
+        today.setHours(0, 0, 0, 0)
 
-        const yesterday = new Date(today)
-        yesterday.setDate(yesterday.getDate() - 1)
-
-        const total = await this.viewLogModel.aggregate([
-            {
-                $match: {
-                    date: { 
-                        $gte: yesterday,
-                        $lte: today 
-                    }
-                }
-            },
-            {
-                $group: {
-                    _id: '$manga'
-                }
-            },
-            {
-                $count: 'total'
+        // Kiểm tra xem có manga nào có view hôm nay không
+        const hasViewsToday = await this.viewLogModel.exists({
+            date: { 
+                $gte: today,
+                $lte: new Date()
             }
-        ]).then(result => result[0]?.total || 0);
+        });
 
-        if (total === 0) {
+        // Nếu có view hôm nay thì chỉ lấy manga có view hôm nay
+        if (hasViewsToday) {
+            const [mangas, total] = await Promise.all([
+                this.viewLogModel.aggregate([
+                    {
+                        $match: {
+                            date: { 
+                                $gte: today,
+                                $lte: new Date()
+                            }
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: '$manga',
+                            dailyViews: {
+                                $sum: '$views'
+                            }
+                        }
+                    },
+                    {
+                        $sort: { 
+                            dailyViews: -1
+                        }
+                    },
+                    {
+                        $skip: (page - 1) * limit
+                    },
+                    {
+                        $limit: limit
+                    },
+                    {
+                        $lookup: {
+                            from: 'mangas',
+                            localField: '_id',
+                            foreignField: '_id',
+                            as: 'mangaDetails'
+                        }
+                    },
+                    {
+                        $unwind: '$mangaDetails'
+                    },
+                    {
+                        $project: {
+                            _id: '$mangaDetails._id',
+                            title: '$mangaDetails.title',
+                            description: '$mangaDetails.description',
+                            coverImg: '$mangaDetails.coverImg',
+                            bannerImg: '$mangaDetails.bannerImg',
+                            author: '$mangaDetails.author',
+                            rating: '$mangaDetails.rating',
+                            view: '$mangaDetails.view',
+                            dailyView: '$dailyViews'
+                        }
+                    }
+                ]),
+                this.viewLogModel.aggregate([
+                    {
+                        $match: {
+                            date: { 
+                                $gte: today,
+                                $lte: new Date()
+                            }
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: '$manga'
+                        }
+                    },
+                    {
+                        $count: 'total'
+                    }
+                ]).then(result => result[0]?.total || 0)
+            ]);
+
             return {
-                mangas: [],
-                total: 0,
+                mangas,
+                total,
                 page,
-                totalPages: 0
+                totalPages: Math.ceil(total / limit)
             };
         }
 
-        const mangas = await this.viewLogModel.aggregate([
-            {
-                $match: {
-                    date: { 
-                        $gte: yesterday,
-                        $lte: today 
-                    }
-                }
-            },
-            {
-                $group: {
-                    _id: '$manga',
-                    viewToday: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ['$date', today] },
-                                '$views',
-                                0
-                            ]
-                        }
-                    },
-                    viewYesterday: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ['$date', yesterday] },
-                                '$views',
-                                0
-                            ]
-                        }
-                    }
-                }
-            },
-            {
-                $addFields: {
-                    effectiveViews: {
-                        $cond: [
-                            { $gt: ['$viewToday', 0] },
-                            '$viewToday',
-                            '$viewYesterday'
-                        ]
-                    }
-                }
-            },
-            {
-                $sort: { 
-                    effectiveViews: -1
-                }
-            },
-            {
-                $skip: skip
-            },
-            {
-                $limit: limit
-            },
-            {
-                $lookup: {
-                    from: 'mangas',
-                    localField: '_id',
-                    foreignField: '_id',
-                    as: 'mangaDetails'
-                }
-            },
-            {
-                $unwind: '$mangaDetails'
-            },
-            {
-                $project: {
-                    _id: '$mangaDetails._id',
-                    title: '$mangaDetails.title',
-                    description: '$mangaDetails.description', 
-                    coverImg: '$mangaDetails.coverImg',
-                    bannerImg: '$mangaDetails.bannerImg',
-                    author: '$mangaDetails.author',
-                    rating: '$mangaDetails.rating',
-                    view: '$mangaDetails.view',
-                    dailyView: '$effectiveViews'
-                }
-            }
-        ]);
-
-        return {
-            mangas,
-            total,
-            page,
-            totalPages: Math.ceil(total / limit)
-        };
-    }
-
-    async findTopMangaByViewsThisWeek(page: number, limit: number): Promise<{
-        mangas: Manga[],
-        total: number,
-        page: number,
-        totalPages: number
-    }> {
-        const now = new Date()
-        
-        // Lấy ngày đầu tuần này (thứ 2)
-        const startOfThisWeek = new Date(now)
-        startOfThisWeek.setUTCDate(now.getUTCDate() - now.getUTCDay() + 1)
-        startOfThisWeek.setUTCHours(0,0,0,0)
-        
-        // Lấy ngày đầu tuần trước
-        const startOfLastWeek = new Date(startOfThisWeek)
-        startOfLastWeek.setUTCDate(startOfLastWeek.getUTCDate() - 7)
-
-        const skip = (page - 1) * limit;
+        // Nếu không có view hôm nay thì lấy view hôm qua
+        const yesterday = new Date(today)
+        yesterday.setDate(yesterday.getDate() - 1)
 
         const [mangas, total] = await Promise.all([
             this.viewLogModel.aggregate([
                 {
                     $match: {
-                        date: { 
-                            $gte: startOfLastWeek,
-                            $lte: now 
-                        }
+                        date: yesterday
                     }
                 },
                 {
                     $group: {
                         _id: '$manga',
-                        viewThisWeek: {
-                            $sum: {
-                                $cond: [
-                                    { $gte: ['$date', startOfThisWeek] },
-                                    '$views',
-                                    0
-                                ]
-                            }
-                        },
-                        viewLastWeek: {
-                            $sum: {
-                                $cond: [
-                                    { 
-                                        $and: [
-                                            { $gte: ['$date', startOfLastWeek] },
-                                            { $lt: ['$date', startOfThisWeek] }
-                                        ]
-                                    },
-                                    '$views',
-                                    0
-                                ]
-                            }
+                        dailyViews: {
+                            $sum: '$views'
                         }
                     }
                 },
                 {
                     $sort: { 
-                        viewThisWeek: -1,
-                        viewLastWeek: -1  
+                        dailyViews: -1
                     }
                 },
                 {
-                    $skip: skip
+                    $skip: (page - 1) * limit
                 },
                 {
                     $limit: limit
@@ -302,8 +235,202 @@ export class MangaService {
                         author: '$mangaDetails.author',
                         rating: '$mangaDetails.rating',
                         view: '$mangaDetails.view',
-                        viewThisWeek: 1,
-                        viewLastWeek: 1
+                        dailyView: '$dailyViews'
+                    }
+                }
+            ]),
+            this.viewLogModel.aggregate([
+                {
+                    $match: {
+                        date: yesterday
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$manga'
+                    }
+                },
+                {
+                    $count: 'total'
+                }
+            ]).then(result => result[0]?.total || 0)
+        ]);
+
+        // Nếu cả 2 ngày đều không có view thì fallback về total views
+        if (total === 0) {
+            return this.findTopMangaByTotalViews(page, limit);
+        }
+
+        return {
+            mangas,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit)
+        };
+    }
+
+    async findTopMangaByViewsThisWeek(page: number, limit: number): Promise<{
+        mangas: Manga[],
+        total: number,
+        page: number,
+        totalPages: number
+    }> {
+        const now = new Date()
+        
+        // Tính ngày đầu tuần này
+        const startOfThisWeek = new Date(now)
+        startOfThisWeek.setHours(0, 0, 0, 0)
+        const day = startOfThisWeek.getDay()
+        const diff = startOfThisWeek.getDate() - day + (day === 0 ? -6 : 1)
+        startOfThisWeek.setDate(diff)
+
+        // Kiểm tra xem có manga nào có view trong tuần này không
+        const hasViewsThisWeek = await this.viewLogModel.exists({
+            date: { 
+                $gte: startOfThisWeek,
+                $lte: now
+            }
+        });
+
+        // Nếu có view tuần này thì chỉ lấy manga có view tuần này
+        if (hasViewsThisWeek) {
+            const [mangas, total] = await Promise.all([
+                this.viewLogModel.aggregate([
+                    {
+                        $match: {
+                            date: { 
+                                $gte: startOfThisWeek,
+                                $lte: now
+                            }
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: '$manga',
+                            weeklyViews: {
+                                $sum: '$views'
+                            }
+                        }
+                    },
+                    {
+                        $sort: { 
+                            weeklyViews: -1
+                        }
+                    },
+                    {
+                        $skip: (page - 1) * limit
+                    },
+                    {
+                        $limit: limit
+                    },
+                    {
+                        $lookup: {
+                            from: 'mangas',
+                            localField: '_id',
+                            foreignField: '_id',
+                            as: 'mangaDetails'
+                        }
+                    },
+                    {
+                        $unwind: '$mangaDetails'
+                    },
+                    {
+                        $project: {
+                            _id: '$mangaDetails._id',
+                            title: '$mangaDetails.title',
+                            description: '$mangaDetails.description',
+                            coverImg: '$mangaDetails.coverImg',
+                            bannerImg: '$mangaDetails.bannerImg',
+                            author: '$mangaDetails.author',
+                            rating: '$mangaDetails.rating',
+                            view: '$mangaDetails.view',
+                            weeklyView: '$weeklyViews'
+                        }
+                    }
+                ]),
+                this.viewLogModel.aggregate([
+                    {
+                        $match: {
+                            date: { 
+                                $gte: startOfThisWeek,
+                                $lte: now
+                            }
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: '$manga'
+                        }
+                    },
+                    {
+                        $count: 'total'
+                    }
+                ]).then(result => result[0]?.total || 0)
+            ]);
+
+            return {
+                mangas,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit)
+            };
+        }
+
+        // Nếu không có view tuần này thì lấy view tuần trước
+        const startOfLastWeek = new Date(startOfThisWeek)
+        startOfLastWeek.setDate(startOfLastWeek.getDate() - 7)
+
+        const [mangas, total] = await Promise.all([
+            this.viewLogModel.aggregate([
+                {
+                    $match: {
+                        date: { 
+                            $gte: startOfLastWeek,
+                            $lt: startOfThisWeek
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$manga',
+                        weeklyViews: {
+                            $sum: '$views'
+                        }
+                    }
+                },
+                {
+                    $sort: { 
+                        weeklyViews: -1
+                    }
+                },
+                {
+                    $skip: (page - 1) * limit
+                },
+                {
+                    $limit: limit
+                },
+                {
+                    $lookup: {
+                        from: 'mangas',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'mangaDetails'
+                    }
+                },
+                {
+                    $unwind: '$mangaDetails'
+                },
+                {
+                    $project: {
+                        _id: '$mangaDetails._id',
+                        title: '$mangaDetails.title',
+                        description: '$mangaDetails.description',
+                        coverImg: '$mangaDetails.coverImg',
+                        bannerImg: '$mangaDetails.bannerImg',
+                        author: '$mangaDetails.author',
+                        rating: '$mangaDetails.rating',
+                        view: '$mangaDetails.view',
+                        weeklyView: '$weeklyViews'
                     }
                 }
             ]),
@@ -312,7 +439,7 @@ export class MangaService {
                     $match: {
                         date: { 
                             $gte: startOfLastWeek,
-                            $lte: now 
+                            $lt: startOfThisWeek
                         }
                     }
                 },
@@ -326,6 +453,11 @@ export class MangaService {
                 }
             ]).then(result => result[0]?.total || 0)
         ]);
+
+        // Nếu cả 2 tuần đều không có view thì fallback về total views
+        if (total === 0) {
+            return this.findTopMangaByTotalViews(page, limit);
+        }
 
         return {
             mangas,
