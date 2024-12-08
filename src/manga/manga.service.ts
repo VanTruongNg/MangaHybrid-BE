@@ -92,7 +92,6 @@ export class MangaService {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
-        // Kiểm tra xem có manga nào có view hôm nay không
         const hasViewsToday = await this.viewLogModel.exists({
             date: { 
                 $gte: today,
@@ -100,7 +99,6 @@ export class MangaService {
             }
         });
 
-        // Nếu có view hôm nay thì chỉ lấy manga có view hôm nay
         if (hasViewsToday) {
             const [mangas, total] = await Promise.all([
                 this.viewLogModel.aggregate([
@@ -184,7 +182,6 @@ export class MangaService {
             };
         }
 
-        // Nếu không có view hôm nay thì lấy view hôm qua
         const yesterday = new Date(today)
         yesterday.setDate(yesterday.getDate() - 1)
 
@@ -256,7 +253,6 @@ export class MangaService {
             ]).then(result => result[0]?.total || 0)
         ]);
 
-        // Nếu cả 2 ngày đều không có view thì fallback về total views
         if (total === 0) {
             return this.findTopMangaByTotalViews(page, limit);
         }
@@ -277,16 +273,12 @@ export class MangaService {
     }> {
         const now = new Date()
         
-        // Sửa lại cách tính ngày đầu tuần này
         const startOfThisWeek = new Date(now)
         startOfThisWeek.setHours(0, 0, 0, 0)
         const day = startOfThisWeek.getDay()
-        // Nếu là chủ nhật (day = 0), vẫn tính là tuần này
         const diff = startOfThisWeek.getDate() - day + (day === 0 ? -6 : 1)
         startOfThisWeek.setDate(diff)
 
-        // Kiểm tra xem có manga nào có view trong tuần này không
-        // Nếu hôm nay là chủ nhật, vẫn tính là view tuần này
         const hasViewsThisWeek = await this.viewLogModel.exists({
             date: { 
                 $gte: startOfThisWeek,
@@ -294,7 +286,6 @@ export class MangaService {
             }
         });
 
-        // Nếu có view tuần này thì chỉ lấy manga có view tuần này
         if (hasViewsThisWeek) {
             const [mangas, total] = await Promise.all([
                 this.viewLogModel.aggregate([
@@ -378,7 +369,6 @@ export class MangaService {
             };
         }
 
-        // Nếu không có view tuần này thì lấy view tuần trước
         const startOfLastWeek = new Date(startOfThisWeek)
         startOfLastWeek.setDate(startOfLastWeek.getDate() - 7)
 
@@ -456,7 +446,6 @@ export class MangaService {
             ]).then(result => result[0]?.total || 0)
         ]);
 
-        // Nếu cả 2 tuần đều không có view thì fallback về total views
         if (total === 0) {
             return this.findTopMangaByTotalViews(page, limit);
         }
@@ -495,7 +484,22 @@ export class MangaService {
                 },
                 {
                     $addFields: {
-                        latestChapter: { $max: '$chapterDetails.createdAt' }
+                        latestChapter: { $max: '$chapterDetails.createdAt' },
+                        chapterName: {
+                            $getField: {
+                                field: 'chapterName',
+                                input: {
+                                    $first: {
+                                        $filter: {
+                                            input: '$chapterDetails',
+                                            cond: { 
+                                                $eq: ['$$this.createdAt', { $max: '$chapterDetails.createdAt' }] 
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 {
@@ -517,7 +521,8 @@ export class MangaService {
                         author: 1,
                         rating: 1,
                         view: 1,
-                        latestUpdate: '$latestChapter'
+                        latestUpdate: '$latestChapter',
+                        chapterName: 1
                     }
                 }
             ]),
@@ -602,24 +607,21 @@ export class MangaService {
         const sanitizedTitle = savedManga.title.replace(/[^\w\s]/g, '').replace(/\s+/g, '')
         
         try {
-            // Resize cover image
             const resizedCover = await sharp(files.cover.buffer)
-                .resize(600, 800, { // Thay đổi kích thước cover
+                .resize(600, 800, { 
                     fit: 'contain',
                     background: { r: 255, g: 255, b: 255, alpha: 1 }
                 })
                 .jpeg({ quality: 80 })
                 .toBuffer();
 
-            // Resize banner image
             const resizedBanner = await sharp(files.banner.buffer)
-                .resize(1920, 1080, { // Thay đổi kích thước banner
+                .resize(1920, 1080, { 
                     fit: 'cover'
                 })
                 .jpeg({ quality: 80 })
                 .toBuffer();
 
-            // Upload resized images
             const coverFileName = `cover-${savedManga._id.toString()}-${sanitizedTitle}`;
             const coverImgUrl = await this.awsService.uploadFile({
                 ...files.cover,
