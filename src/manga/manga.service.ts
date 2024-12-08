@@ -277,14 +277,16 @@ export class MangaService {
     }> {
         const now = new Date()
         
-        // Tính ngày đầu tuần này
+        // Sửa lại cách tính ngày đầu tuần này
         const startOfThisWeek = new Date(now)
         startOfThisWeek.setHours(0, 0, 0, 0)
         const day = startOfThisWeek.getDay()
+        // Nếu là chủ nhật (day = 0), vẫn tính là tuần này
         const diff = startOfThisWeek.getDate() - day + (day === 0 ? -6 : 1)
         startOfThisWeek.setDate(diff)
 
         // Kiểm tra xem có manga nào có view trong tuần này không
+        // Nếu hôm nay là chủ nhật, vẫn tính là view tuần này
         const hasViewsThisWeek = await this.viewLogModel.exists({
             date: { 
                 $gte: startOfThisWeek,
