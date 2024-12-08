@@ -1,6 +1,5 @@
 import { 
-    BadRequestException, Body, Controller, FileTypeValidator, Get, 
-    MaxFileSizeValidator, Param, ParseFilePipe, Post, Put, Req, Res, UploadedFile, UploadedFiles, UseInterceptors 
+    BadRequestException, Body, Controller, Get, Param, Post, Put, Req, Res, UploadedFile, UploadedFiles, UseInterceptors, Query, ParseIntPipe, HttpStatus 
 } from '@nestjs/common';
 import { MangaService } from './manga.service';
 import { Manga } from './schemas/manga.schema';
@@ -27,26 +26,55 @@ export class MangaController {
         return this.mangaService.findAll();
     }
     
-    @Get('home')
-    @ApiOperation({ summary: 'Lấy dữ liệu trang chủ' })
-    async getHomeData(): Promise<{
+    @Get('home/web')
+    @ApiOperation({ summary: 'Lấy dữ liệu trang chủ cho web' })
+    async getWebHomeData(): Promise<{
         dailyTop: Manga[],
         weeklyTop: Manga[],
         recentUpdated: Manga[],
-        randomManga: Manga[]
+        randomManga: Manga[],
+        topAllTime: Manga[]
     }> {
-        const [dailyTop, weeklyTop, recentUpdated, randomManga] = await Promise.all([
-            this.mangaService.findTopMangaByViewsToday(),
-            this.mangaService.findTopMangaByViewsThisWeek(),
-            this.mangaService.findRecentlyUpdated(),
-            this.mangaService.findRandomManga()
+        const [dailyTop, weeklyTop, recentUpdated, randomManga, topAllTime] = await Promise.all([
+            this.mangaService.findTopMangaByViewsToday(1, 24),
+            this.mangaService.findTopMangaByViewsThisWeek(1, 24),
+            this.mangaService.findRecentlyUpdated(1, 24),
+            this.mangaService.findRandomManga(5),
+            this.mangaService.findTopMangaByTotalViews(1, 24)
         ]);
 
         return {
-            dailyTop,
-            weeklyTop,
-            recentUpdated,
-            randomManga
+            dailyTop: dailyTop.mangas,
+            weeklyTop: weeklyTop.mangas,
+            recentUpdated: recentUpdated.mangas,
+            randomManga,
+            topAllTime: topAllTime.mangas
+        };
+    }
+
+    @Get('home/mobile') 
+    @ApiOperation({ summary: 'Lấy dữ liệu trang chủ cho mobile' })
+    async getMobileHomeData(): Promise<{
+        dailyTop: Manga[],
+        weeklyTop: Manga[],
+        recentUpdated: Manga[],
+        randomManga: Manga[],
+        topAllTime: Manga[]
+    }> {
+        const [dailyTop, weeklyTop, recentUpdated, randomManga, topAllTime] = await Promise.all([
+            this.mangaService.findTopMangaByViewsToday(1, 5),
+            this.mangaService.findTopMangaByViewsThisWeek(1, 5),
+            this.mangaService.findRecentlyUpdated(1, 5),
+            this.mangaService.findRandomManga(5),
+            this.mangaService.findTopMangaByTotalViews(1, 5)
+        ]);
+
+        return {
+            dailyTop: dailyTop.mangas,
+            weeklyTop: weeklyTop.mangas,
+            recentUpdated: recentUpdated.mangas,
+            randomManga,
+            topAllTime: topAllTime.mangas
         };
     }
 
@@ -190,5 +218,47 @@ export class MangaController {
         });
         
         res.send(zipBuffer);
+    }
+
+    @Get('browse')
+    @ApiOperation({ summary: 'Lấy danh sách manga theo loại' })
+    async browseManga(
+        @Query('type') type: 'daily' | 'weekly' | 'latest' | 'top' = 'latest',
+        @Query('page', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) page: number = 1,
+        @Query('limit', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) limit: number = 24
+    ): Promise<{
+        mangas: Manga[],
+        total: number,
+        page: number,
+        totalPages: number
+    }> {
+        if (page < 1) {
+            throw new BadRequestException('Số trang phải lớn hơn 0');
+        }
+
+        if (limit < 1 || limit > 100) {
+            throw new BadRequestException('Số lượng manga mỗi trang phải từ 1 đến 100');
+        }
+
+        const result = await (async () => {
+            switch(type) {
+                case 'daily':
+                    return this.mangaService.findTopMangaByViewsToday(page, limit);
+                case 'weekly':
+                    return this.mangaService.findTopMangaByViewsThisWeek(page, limit);
+                case 'latest':
+                    return this.mangaService.findRecentlyUpdated(page, limit);
+                case 'top':
+                    return this.mangaService.findTopMangaByTotalViews(page, limit);
+                default:
+                    return this.mangaService.findRecentlyUpdated(page, limit);
+            }
+        })();
+
+        if (page > result.totalPages) {
+            throw new BadRequestException('Trang yêu cầu vượt quá số trang hiện có');
+        }
+
+        return result;
     }
 }
