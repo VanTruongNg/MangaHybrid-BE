@@ -194,17 +194,15 @@ export class AuthController {
     }
 
     @Post('/logout')
-    @Auth()
     @ApiOperation({ summary: 'Đăng xuất' })
     async logout(
-        @Req() req: any,
         @Headers('device-id') deviceId: string
     ): Promise<{ message: string }> {
         if (!deviceId) {
             throw new BadRequestException('Device ID is required');
         }
 
-        await this.authService.logout(req.user._id, deviceId);
+        await this.authService.logout(deviceId);
         return {
             message: 'Đăng xuất thành công'
         };

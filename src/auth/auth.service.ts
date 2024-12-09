@@ -437,12 +437,11 @@ export class AuthService {
         return true;
     }
 
-    async logout(userId: string, deviceId: string): Promise<void> {
+    async logout(deviceId: string): Promise<void> {
         this.validateDeviceId(deviceId);
         try {
             const result = await this.refreshTokenModel.findOneAndUpdate(
                 { 
-                    user: userId, 
                     deviceId,
                     isRevoked: false
                 },
