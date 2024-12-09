@@ -4,15 +4,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { WsException } from '@nestjs/websockets';
 import { Model } from 'mongoose';
 import { Socket } from 'socket.io';
-import { Token } from '../schemas/token.schema';
 import { User } from '../schemas/user.schema';
 
 @Injectable()
 export class WsStrategy {
   constructor(
     private readonly jwtService: JwtService,
-    @InjectModel(User.name) private readonly userModel: Model<User>,
-    @InjectModel(Token.name) private readonly tokenModel: Model<Token>
+    @InjectModel(User.name) private readonly userModel: Model<User>
   ) {}
 
   async validateClient(client: Socket): Promise<boolean> {
@@ -29,11 +27,6 @@ export class WsStrategy {
       const user = await this.userModel.findById(payload.id);
       if (!user) {
         throw new WsException('User không tồn tại');
-      }
-
-      const tokenDoc = await this.tokenModel.findOne({ user: user._id }).sort({ createdAt: -1 });
-      if (tokenDoc?.isRevoked) {
-        throw new WsException('Token đã bị vô hiệu hoá');
       }
 
       client.data.userId = user._id.toString();
