@@ -16,7 +16,7 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
-    private readonly validDeviceIds: string[];
+    private readonly devicePrefixes: string[];
 
     constructor(
         @InjectModel(User.name)
@@ -31,14 +31,26 @@ export class AuthService {
         @InjectQueue('email') private readonly emailQueue: Queue,
         private readonly configService: ConfigService
     ) {
-        this.validDeviceIds = [
-            this.configService.get<string>('WEB_DEVICE_ID'),
-            this.configService.get<string>('MOBILE_DEVICE_ID')
+        this.devicePrefixes = [
+            'web',
+            'mobile'
         ];
     }
 
     private validateDeviceId(deviceId: string) {
-        if (!this.validDeviceIds.includes(deviceId)) {
+        if (!deviceId) {
+            throw new UnauthorizedException('Device ID không được để trống');
+        }
+
+        if (deviceId === 'postman') {
+            return;
+        }
+
+        const hasValidPrefix = this.devicePrefixes.some(prefix => 
+            deviceId.startsWith(prefix) && deviceId.length > prefix.length
+        );
+
+        if (!hasValidPrefix) {
             throw new UnauthorizedException('Device ID không hợp lệ');
         }
     }
@@ -428,12 +440,22 @@ export class AuthService {
     async logout(userId: string, deviceId: string): Promise<void> {
         this.validateDeviceId(deviceId);
         try {
-            await this.refreshTokenModel.findOneAndUpdate(
-                { user: userId, deviceId },
-                { isRevoked: true },
-                { sort: { createdAt: -1 } }
+            const result = await this.refreshTokenModel.findOneAndUpdate(
+                { 
+                    user: userId, 
+                    deviceId,
+                    isRevoked: false
+                },
+                { isRevoked: true }
             );
+
+            if (!result) {
+                throw new HttpException('Không tìm thấy phiên đăng nhập', HttpStatus.NOT_FOUND);
+            }
         } catch (error) {
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new HttpException('Lỗi khi đăng xuất', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
