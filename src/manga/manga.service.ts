@@ -885,7 +885,7 @@ export class MangaService {
                 {
                     $lookup: {
                         from: 'chapters',
-                        localField: 'chapters',
+                        localField: 'mangaDetails.chapters',
                         foreignField: '_id',
                         as: 'chapterDetails'
                     }
