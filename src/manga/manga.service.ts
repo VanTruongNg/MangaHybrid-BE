@@ -141,6 +141,34 @@ export class MangaService {
                         $unwind: '$mangaDetails'
                     },
                     {
+                        $lookup: {
+                            from: 'chapters',
+                            localField: 'chapters',
+                            foreignField: '_id',
+                            as: 'chapterDetails'
+                        }
+                    },
+                    {
+                        $addFields: {
+                            latestChapter: { $max: '$chapterDetails.createdAt' },
+                            chapterName: {
+                                $getField: {
+                                    field: 'chapterName',
+                                    input: {
+                                        $first: {
+                                            $filter: {
+                                                input: '$chapterDetails',
+                                                cond: { 
+                                                    $eq: ['$$this.createdAt', { $max: '$chapterDetails.createdAt' }] 
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
                         $project: {
                             _id: '$mangaDetails._id',
                             title: '$mangaDetails.title',
@@ -150,7 +178,9 @@ export class MangaService {
                             author: '$mangaDetails.author',
                             rating: '$mangaDetails.rating',
                             view: '$mangaDetails.view',
-                            dailyView: '$dailyViews'
+                            dailyView: '$dailyViews',
+                            latestUpdate: '$latestChapter',
+                            chapterName: 1
                         }
                     }
                 ]),
@@ -223,6 +253,34 @@ export class MangaService {
                     $unwind: '$mangaDetails'
                 },
                 {
+                    $lookup: {
+                        from: 'chapters',
+                        localField: 'chapters',
+                        foreignField: '_id',
+                        as: 'chapterDetails'
+                    }
+                },
+                {
+                    $addFields: {
+                        latestChapter: { $max: '$chapterDetails.createdAt' },
+                        chapterName: {
+                            $getField: {
+                                field: 'chapterName',
+                                input: {
+                                    $first: {
+                                        $filter: {
+                                            input: '$chapterDetails',
+                                            cond: { 
+                                                $eq: ['$$this.createdAt', { $max: '$chapterDetails.createdAt' }] 
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
                     $project: {
                         _id: '$mangaDetails._id',
                         title: '$mangaDetails.title',
@@ -232,7 +290,9 @@ export class MangaService {
                         author: '$mangaDetails.author',
                         rating: '$mangaDetails.rating',
                         view: '$mangaDetails.view',
-                        dailyView: '$dailyViews'
+                        dailyView: '$dailyViews',
+                        latestUpdate: '$latestChapter',
+                        chapterName: 1
                     }
                 }
             ]),
@@ -272,113 +332,17 @@ export class MangaService {
         totalPages: number
     }> {
         const now = new Date()
-        
-        const startOfThisWeek = new Date(now)
-        startOfThisWeek.setHours(0, 0, 0, 0)
-        const day = startOfThisWeek.getDay()
-        const diff = startOfThisWeek.getDate() - day + (day === 0 ? -6 : 1)
-        startOfThisWeek.setDate(diff)
-
-        const hasViewsThisWeek = await this.viewLogModel.exists({
-            date: { 
-                $gte: startOfThisWeek,
-                $lte: now
-            }
-        });
-
-        if (hasViewsThisWeek) {
-            const [mangas, total] = await Promise.all([
-                this.viewLogModel.aggregate([
-                    {
-                        $match: {
-                            date: { 
-                                $gte: startOfThisWeek,
-                                $lte: now
-                            }
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: '$manga',
-                            weeklyViews: {
-                                $sum: '$views'
-                            }
-                        }
-                    },
-                    {
-                        $sort: { 
-                            weeklyViews: -1
-                        }
-                    },
-                    {
-                        $skip: (page - 1) * limit
-                    },
-                    {
-                        $limit: limit
-                    },
-                    {
-                        $lookup: {
-                            from: 'mangas',
-                            localField: '_id',
-                            foreignField: '_id',
-                            as: 'mangaDetails'
-                        }
-                    },
-                    {
-                        $unwind: '$mangaDetails'
-                    },
-                    {
-                        $project: {
-                            _id: '$mangaDetails._id',
-                            title: '$mangaDetails.title',
-                            description: '$mangaDetails.description',
-                            coverImg: '$mangaDetails.coverImg',
-                            bannerImg: '$mangaDetails.bannerImg',
-                            author: '$mangaDetails.author',
-                            rating: '$mangaDetails.rating',
-                            view: '$mangaDetails.view',
-                            weeklyView: '$weeklyViews'
-                        }
-                    }
-                ]),
-                this.viewLogModel.aggregate([
-                    {
-                        $match: {
-                            date: { 
-                                $gte: startOfThisWeek,
-                                $lte: now
-                            }
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: '$manga'
-                        }
-                    },
-                    {
-                        $count: 'total'
-                    }
-                ]).then(result => result[0]?.total || 0)
-            ]);
-
-            return {
-                mangas,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit)
-            };
-        }
-
-        const startOfLastWeek = new Date(startOfThisWeek)
-        startOfLastWeek.setDate(startOfLastWeek.getDate() - 7)
+        const sevenDaysAgo = new Date(now)
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+        sevenDaysAgo.setHours(0, 0, 0, 0)
 
         const [mangas, total] = await Promise.all([
             this.viewLogModel.aggregate([
                 {
                     $match: {
                         date: { 
-                            $gte: startOfLastWeek,
-                            $lt: startOfThisWeek
+                            $gte: sevenDaysAgo,
+                            $lte: now
                         }
                     }
                 },
@@ -413,6 +377,34 @@ export class MangaService {
                     $unwind: '$mangaDetails'
                 },
                 {
+                    $lookup: {
+                        from: 'chapters',
+                        localField: 'chapters',
+                        foreignField: '_id',
+                        as: 'chapterDetails'
+                    }
+                },
+                {
+                    $addFields: {
+                        latestChapter: { $max: '$chapterDetails.createdAt' },
+                        chapterName: {
+                            $getField: {
+                                field: 'chapterName',
+                                input: {
+                                    $first: {
+                                        $filter: {
+                                            input: '$chapterDetails',
+                                            cond: { 
+                                                $eq: ['$$this.createdAt', { $max: '$chapterDetails.createdAt' }] 
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
                     $project: {
                         _id: '$mangaDetails._id',
                         title: '$mangaDetails.title',
@@ -422,33 +414,19 @@ export class MangaService {
                         author: '$mangaDetails.author',
                         rating: '$mangaDetails.rating',
                         view: '$mangaDetails.view',
-                        weeklyView: '$weeklyViews'
+                        weeklyView: '$weeklyViews',
+                        latestUpdate: '$latestChapter',
+                        chapterName: 1
                     }
                 }
             ]),
-            this.viewLogModel.aggregate([
-                {
-                    $match: {
-                        date: { 
-                            $gte: startOfLastWeek,
-                            $lt: startOfThisWeek
-                        }
-                    }
-                },
-                {
-                    $group: {
-                        _id: '$manga'
-                    }
-                },
-                {
-                    $count: 'total'
+            this.viewLogModel.countDocuments({
+                date: { 
+                    $gte: sevenDaysAgo,
+                    $lte: now
                 }
-            ]).then(result => result[0]?.total || 0)
+            })
         ]);
-
-        if (total === 0) {
-            return this.findTopMangaByTotalViews(page, limit);
-        }
 
         return {
             mangas,
@@ -813,6 +791,117 @@ export class MangaService {
                     $count: 'total'
                 }
             ]).then(result => result[0]?.total || 0)
+        ]);
+
+        return {
+            mangas,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit)
+        };
+    }
+
+    async findTopMangaByViewsThisMonth(page: number, limit: number): Promise<{
+        mangas: Manga[],
+        total: number,
+        page: number,
+        totalPages: number
+    }> {
+        const now = new Date()
+        const thirtyDaysAgo = new Date(now)
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        thirtyDaysAgo.setHours(0, 0, 0, 0)
+
+        const [mangas, total] = await Promise.all([
+            this.viewLogModel.aggregate([
+                {
+                    $match: {
+                        date: { 
+                            $gte: thirtyDaysAgo,
+                            $lte: now
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$manga',
+                        monthlyViews: {
+                            $sum: '$views'
+                        }
+                    }
+                },
+                {
+                    $sort: { 
+                        monthlyViews: -1
+                    }
+                },
+                {
+                    $skip: (page - 1) * limit
+                },
+                {
+                    $limit: limit
+                },
+                {
+                    $lookup: {
+                        from: 'mangas',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'mangaDetails'
+                    }
+                },
+                {
+                    $unwind: '$mangaDetails'
+                },
+                {
+                    $lookup: {
+                        from: 'chapters',
+                        localField: 'chapters',
+                        foreignField: '_id',
+                        as: 'chapterDetails'
+                    }
+                },
+                {
+                    $addFields: {
+                        latestChapter: { $max: '$chapterDetails.createdAt' },
+                        chapterName: {
+                            $getField: {
+                                field: 'chapterName',
+                                input: {
+                                    $first: {
+                                        $filter: {
+                                            input: '$chapterDetails',
+                                            cond: { 
+                                                $eq: ['$$this.createdAt', { $max: '$chapterDetails.createdAt' }] 
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        _id: '$mangaDetails._id',
+                        title: '$mangaDetails.title',
+                        description: '$mangaDetails.description',
+                        coverImg: '$mangaDetails.coverImg',
+                        bannerImg: '$mangaDetails.bannerImg',
+                        author: '$mangaDetails.author',
+                        rating: '$mangaDetails.rating',
+                        view: '$mangaDetails.view',
+                        monthlyView: '$monthlyViews',
+                        latestUpdate: '$latestChapter',
+                        chapterName: 1
+                    }
+                }
+            ]),
+            this.viewLogModel.countDocuments({
+                date: { 
+                    $gte: thirtyDaysAgo,
+                    $lte: now
+                }
+            })
         ]);
 
         return {
