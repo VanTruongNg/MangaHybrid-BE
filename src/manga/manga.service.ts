@@ -143,7 +143,7 @@ export class MangaService {
                     {
                         $lookup: {
                             from: 'chapters',
-                            localField: 'chapters',
+                            localField: 'mangaDetails.chapters',
                             foreignField: '_id',
                             as: 'chapterDetails'
                         }
@@ -255,7 +255,7 @@ export class MangaService {
                 {
                     $lookup: {
                         from: 'chapters',
-                        localField: 'chapters',
+                        localField: 'mangaDetails.chapters',
                         foreignField: '_id',
                         as: 'chapterDetails'
                     }
@@ -379,7 +379,7 @@ export class MangaService {
                 {
                     $lookup: {
                         from: 'chapters',
-                        localField: 'chapters',
+                        localField: 'mangaDetails.chapters',
                         foreignField: '_id',
                         as: 'chapterDetails'
                     }
@@ -769,6 +769,34 @@ export class MangaService {
                     $limit: limit
                 },
                 {
+                    $lookup: {
+                        from: 'chapters',
+                        localField: 'chapters',
+                        foreignField: '_id',
+                        as: 'chapterDetails'
+                    }
+                },
+                {
+                    $addFields: {
+                        latestChapter: { $max: '$chapterDetails.createdAt' },
+                        chapterName: {
+                            $getField: {
+                                field: 'chapterName',
+                                input: {
+                                    $first: {
+                                        $filter: {
+                                            input: '$chapterDetails',
+                                            cond: { 
+                                                $eq: ['$$this.createdAt', { $max: '$chapterDetails.createdAt' }] 
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
                     $project: {
                         _id: 1,
                         title: 1,
@@ -777,7 +805,9 @@ export class MangaService {
                         bannerImg: 1,
                         author: 1,
                         rating: 1,
-                        view: '$totalViews'
+                        view: '$totalViews',
+                        latestUpdate: '$latestChapter',
+                        chapterName: 1
                     }
                 }
             ]),
