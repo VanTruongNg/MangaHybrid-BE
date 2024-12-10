@@ -31,13 +31,15 @@ export class MangaController {
     async getWebHomeData(): Promise<{
         dailyTop: Manga[],
         weeklyTop: Manga[],
+        monthlyTop: Manga[],
         recentUpdated: Manga[],
         randomManga: Manga[],
         topAllTime: Manga[]
     }> {
-        const [dailyTop, weeklyTop, recentUpdated, randomManga, topAllTime] = await Promise.all([
+        const [dailyTop, weeklyTop, monthlyTop, recentUpdated, randomManga, topAllTime] = await Promise.all([
             this.mangaService.findTopMangaByViewsToday(1, 24),
             this.mangaService.findTopMangaByViewsThisWeek(1, 24),
+            this.mangaService.findTopMangaByViewsThisMonth(1, 24),
             this.mangaService.findRecentlyUpdated(1, 24),
             this.mangaService.findRandomManga(5),
             this.mangaService.findTopMangaByTotalViews(1, 24)
@@ -46,6 +48,7 @@ export class MangaController {
         return {
             dailyTop: dailyTop.mangas,
             weeklyTop: weeklyTop.mangas,
+            monthlyTop: monthlyTop.mangas,
             recentUpdated: recentUpdated.mangas,
             randomManga,
             topAllTime: topAllTime.mangas
@@ -57,13 +60,15 @@ export class MangaController {
     async getMobileHomeData(): Promise<{
         dailyTop: Manga[],
         weeklyTop: Manga[],
+        monthlyTop: Manga[],
         recentUpdated: Manga[],
         randomManga: Manga[],
         topAllTime: Manga[]
     }> {
-        const [dailyTop, weeklyTop, recentUpdated, randomManga, topAllTime] = await Promise.all([
+        const [dailyTop, weeklyTop, monthlyTop, recentUpdated, randomManga, topAllTime] = await Promise.all([
             this.mangaService.findTopMangaByViewsToday(1, 5),
             this.mangaService.findTopMangaByViewsThisWeek(1, 5),
+            this.mangaService.findTopMangaByViewsThisMonth(1, 5),
             this.mangaService.findRecentlyUpdated(1, 5),
             this.mangaService.findRandomManga(5),
             this.mangaService.findTopMangaByTotalViews(1, 5)
@@ -72,6 +77,7 @@ export class MangaController {
         return {
             dailyTop: dailyTop.mangas,
             weeklyTop: weeklyTop.mangas,
+            monthlyTop: monthlyTop.mangas,
             recentUpdated: recentUpdated.mangas,
             randomManga,
             topAllTime: topAllTime.mangas
@@ -223,7 +229,7 @@ export class MangaController {
     @Get('browse')
     @ApiOperation({ summary: 'Lấy danh sách manga theo loại' })
     async browseManga(
-        @Query('type') type: 'daily' | 'weekly' | 'latest' | 'top' = 'latest',
+        @Query('type') type: 'daily' | 'weekly' | 'monthly' | 'latest' | 'top' = 'latest',
         @Query('page', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) page: number = 1,
         @Query('limit', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) limit: number = 24
     ): Promise<{
@@ -246,6 +252,8 @@ export class MangaController {
                     return this.mangaService.findTopMangaByViewsToday(page, limit);
                 case 'weekly':
                     return this.mangaService.findTopMangaByViewsThisWeek(page, limit);
+                case 'monthly':
+                    return this.mangaService.findTopMangaByViewsThisMonth(page, limit);
                 case 'latest':
                     return this.mangaService.findRecentlyUpdated(page, limit);
                 case 'top':
