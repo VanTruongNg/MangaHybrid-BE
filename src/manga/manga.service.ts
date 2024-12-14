@@ -1011,7 +1011,9 @@ export class MangaService {
                     }
                 }
             ]),
-            this.mangaModel.countDocuments({ uploader: uploaderId })
+            this.mangaModel.countDocuments({ 
+                uploader: new mongoose.Types.ObjectId(uploaderId)
+            })
         ]);
 
         return {
