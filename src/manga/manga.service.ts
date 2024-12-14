@@ -943,54 +943,80 @@ export class MangaService {
         };
     }
 
-    async getMangaByUploader(uploaderId: string): Promise<Manga[]> {
+    async getMangaByUploader(uploaderId: string): Promise<{
+        mangas: Manga[],
+        totalManga: number
+    }> {
         const uploader = await this.userModel.findById(uploaderId)
         if (!uploader) {
             throw new HttpException(`Uploader với ID: ${uploaderId} không tồn tại`, HttpStatus.NOT_FOUND)
         }
 
-        return await this.mangaModel.aggregate([
-            {
-                $match: { 
-                    uploader: new mongoose.Types.ObjectId(uploaderId)
-                }
-            },
-            {
-                $lookup: {
-                    from: 'chapters',
-                    localField: 'chapters',
-                    foreignField: '_id',
-                    as: 'chapters'
-                }
-            },
-            {
-                $addFields: {
-                    chapters: {
-                        $slice: [
-                            { $sortArray: { input: '$chapters', sortBy: { createdAt: -1 } } },
-                            1
-                        ]
+        const [mangas, totalManga] = await Promise.all([
+            this.mangaModel.aggregate([
+                {
+                    $match: { 
+                        uploader: new mongoose.Types.ObjectId(uploaderId)
                     }
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    title: 1,
-                    coverImg: 1,
-                    chapters: {
-                        $map: {
-                            input: '$chapters',
-                            as: 'chapter',
-                            in: {
-                                _id: '$$chapter._id',
-                                chapterName: '$$chapter.chapterName',
-                                createdAt: '$$chapter.createdAt'
+                },
+                {
+                    $lookup: {
+                        from: 'chapters',
+                        localField: 'chapters',
+                        foreignField: '_id',
+                        as: 'chapters'
+                    }
+                },
+                {
+                    $addFields: {
+                        latestChapterDate: {
+                            $max: '$chapters.createdAt'
+                        }
+                    }
+                },
+                {
+                    $sort: {
+                        latestChapterDate: -1
+                    }
+                },
+                {
+                    $limit: 5
+                },
+                {
+                    $addFields: {
+                        chapters: {
+                            $slice: [
+                                { $sortArray: { input: '$chapters', sortBy: { createdAt: -1 } } },
+                                1
+                            ]
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        coverImg: 1,
+                        chapters: {
+                            $map: {
+                                input: '$chapters',
+                                as: 'chapter',
+                                in: {
+                                    _id: '$$chapter._id',
+                                    chapterName: '$$chapter.chapterName',
+                                    createdAt: '$$chapter.createdAt'
+                                }
                             }
                         }
                     }
                 }
-            }
+            ]),
+            this.mangaModel.countDocuments({ uploader: uploaderId })
         ]);
+
+        return {
+            mangas,
+            totalManga
+        };
     }
 }

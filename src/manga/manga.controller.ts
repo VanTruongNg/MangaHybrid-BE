@@ -297,8 +297,11 @@ export class MangaController {
     }
 
     @Get('uploader/:id')
-    @ApiOperation({ summary: 'Lấy danh sách manga của uploader' })
-    async getMangaByUploader(@Param('id') id: string): Promise<Manga[]> {
+    @ApiOperation({ summary: 'Lấy 5 manga mới nhất của uploader và tổng số manga' })
+    async getMangaByUploader(@Param('id') id: string): Promise<{
+        mangas: Manga[],
+        totalManga: number
+    }> {
         return this.mangaService.getMangaByUploader(id)
     }
 
