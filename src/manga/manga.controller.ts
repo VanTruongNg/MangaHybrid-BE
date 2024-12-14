@@ -150,6 +150,32 @@ export class MangaController {
         return await this.mangaService.updateBannerImg(id, file, req.user._id)
     }
 
+    @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
+    @ApiOperation({ summary: 'Cập nhật ảnh bìa' })
+    @UseInterceptors(FileInterceptor('coverImg', {
+        limits: {
+            fileSize: 5 * 1024 * 1024
+        },
+        fileFilter: (req, file, callback) => {
+            if (!file.mimetype.match(/^image\/(jpeg|png)$/)) {
+                callback(new BadRequestException('Chỉ chấp nhận file ảnh định dạng JPG hoặc PNG'), false);
+                return;
+            }
+            callback(null, true);
+        }
+    }))
+    @Put('/:id/cover')
+    async updateCoverImg(
+        @Param('id') id: string,
+        @Req() req: any,
+        @UploadedFile() file: Express.Multer.File
+    ): Promise<Manga> {
+        if (!file) {
+            throw new BadRequestException('Hãy thêm ảnh bìa!')
+        }
+        return await this.mangaService.updateCoverImg(id, file, req.user._id)
+    }
+
     @Get(':id/offline-info')
     @ApiOperation({ summary: 'Lấy thông tin manga để lưu offline' })
     async getMangaOfflineInfo(
