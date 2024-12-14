@@ -675,7 +675,7 @@ export class MangaService {
         if (!manga) {
             throw new NotFoundException(`Manga với ID: ${mangaId} không tồn tại`)
         }
-        if (manga.uploader.toString() !== userId) {
+        if (manga.uploader.toString() !== userId.toString()) {
             throw new ForbiddenException('Bạn không phải là người upload Manga này!')
         }
         if (manga.approvalStatus !== ApprovalStatus.APPROVED) {
