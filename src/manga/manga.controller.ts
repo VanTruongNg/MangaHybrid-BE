@@ -269,4 +269,17 @@ export class MangaController {
 
         return result;
     }
+
+    @Get('uploader/:id')
+    @ApiOperation({ summary: 'Lấy danh sách manga của uploader' })
+    async getMangaByUploader(@Param('id') id: string): Promise<Manga[]> {
+        return this.mangaService.getMangaByUploader(id)
+    }
+
+    @Auth({ roles:[Role.ADMIN], requireVerified: true })
+    @ApiOperation({ summary: 'Phê duyệt manga' })
+    @Put('/:id/approve')
+    async approveManga(@Param('id') id: string): Promise<void> {
+        return this.mangaService.approveMangaById(id)
+    }
 }

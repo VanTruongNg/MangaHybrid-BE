@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Manga, ViewLog } from './schemas/manga.schema';
 import { Model } from 'mongoose';
@@ -8,6 +8,7 @@ import { Genre } from 'src/genres/schemas/genre.schema';
 import { User } from 'src/auth/schemas/user.schema';
 import { ApprovalStatus } from './schemas/status.enum';
 import * as sharp from 'sharp';
+import * as mongoose from 'mongoose';
 
 interface PaginatedResult<T> {
     mangas: T[];
@@ -647,7 +648,7 @@ export class MangaService {
                 throw new ConflictException(`Manga ${mangaId} đã bị từ chối`)
             }
 
-            manga.approvalStatus === ApprovalStatus.APPROVED
+            manga.approvalStatus = ApprovalStatus.APPROVED
             await manga.save()
         } catch (error) {
             throw new InternalServerErrorException(`Xảy ra lỗi khi phê duyệt: ${error.message}`)
@@ -940,5 +941,56 @@ export class MangaService {
             page,
             totalPages: Math.ceil(total / limit)
         };
+    }
+
+    async getMangaByUploader(uploaderId: string): Promise<Manga[]> {
+        const uploader = await this.userModel.findById(uploaderId)
+        if (!uploader) {
+            throw new HttpException(`Uploader với ID: ${uploaderId} không tồn tại`, HttpStatus.NOT_FOUND)
+        }
+
+        return await this.mangaModel.aggregate([
+            {
+                $match: { 
+                    uploader: new mongoose.Types.ObjectId(uploaderId)
+                }
+            },
+            {
+                $lookup: {
+                    from: 'chapters',
+                    localField: 'chapters',
+                    foreignField: '_id',
+                    as: 'chapters'
+                }
+            },
+            {
+                $addFields: {
+                    chapters: {
+                        $slice: [
+                            { $sortArray: { input: '$chapters', sortBy: { createdAt: -1 } } },
+                            1
+                        ]
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    title: 1,
+                    coverImg: 1,
+                    chapters: {
+                        $map: {
+                            input: '$chapters',
+                            as: 'chapter',
+                            in: {
+                                _id: '$$chapter._id',
+                                chapterName: '$$chapter.chapterName',
+                                createdAt: '$$chapter.createdAt'
+                            }
+                        }
+                    }
+                }
+            }
+        ]);
     }
 }
