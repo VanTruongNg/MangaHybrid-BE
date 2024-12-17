@@ -25,10 +25,16 @@ export class UserController {
 
     @Get('/me')
     @Auth()
-    @ApiOperation({ summary: 'Lấy thông tin người dùng' })
-    async getUserById(@Req() req: any): Promise<UserProfileDTO> {
+    @ApiOperation({ summary: 'Lấy thông tin cá nhân' })
+    async getMyProfile(@Req() req: any): Promise<UserProfileDTO> {
         const userId = req.user._id;
-        return this.userService.findById(userId);
+        return this.userService.findById(userId, true);
+    }
+
+    @Get('/profile/:id')
+    @ApiOperation({ summary: 'Lấy thông tin profile người dùng khác (public)' })
+    async getUserProfile(@Param('id') userId: string): Promise<UserProfileDTO> {
+        return this.userService.findById(userId, false);
     }
 
     @Patch('/update-avatar')
