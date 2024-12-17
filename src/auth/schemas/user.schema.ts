@@ -65,11 +65,18 @@ export class User{
     @Prop({
         type: [{
             manga: { type: mongoose.Schema.Types.ObjectId, ref: 'Manga'},
-            chapter: { type: mongoose.Schema.Types.ObjectId, ref: 'Chapter'},
+            chapters: [{
+                chapter: { type: mongoose.Schema.Types.ObjectId, ref: 'Chapter'},
+                readAt: { type: Date, default: Date.now }
+            }],
             updatedAt: { type: Date, default: Date.now }
         }]
     })
-    readingHistory: { manga: Manga, chapter: Chapter, updatedAt: Date }[];
+    readingHistory: {
+        manga: Manga,
+        chapters: { chapter: Chapter, readAt: Date }[],
+        updatedAt: Date
+    }[];
 
     @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }] })
     comments: Comment[];
