@@ -29,7 +29,7 @@ export class Manga {
     @Prop({
         type: String,
         enum: StatusEnum,
-        default: StatusEnum.INPROGRESS
+        default: StatusEnum.ONGOING
     })
     status: StatusEnum
 

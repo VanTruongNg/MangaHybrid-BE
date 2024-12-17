@@ -15,12 +15,14 @@ export class RatingService {
     ){}
 
     async rateManga(userId: string, mangaId: string, createRatingDto: CreateRatingDTO): Promise<void> {
-        const user = await this.userModel.findById(userId);
+        const [user, manga] = await Promise.all([
+            this.userModel.findById(userId),
+            this.mangaModel.findById(mangaId)
+        ]);
+
         if (!user) {
             throw new HttpException('USER.NOT_FOUND', HttpStatus.NOT_FOUND);
         }
-
-        const manga = await this.mangaModel.findById(mangaId);
         if (!manga) {
             throw new HttpException('MANGA.NOT_FOUND', HttpStatus.NOT_FOUND);
         }
@@ -30,24 +32,33 @@ export class RatingService {
             manga: mangaId
         });
 
-        if (existingRating) {
-            manga.totalRating = manga.totalRating - existingRating.score + createRatingDto.score;
-            existingRating.score = createRatingDto.score;
-            await existingRating.save();
-        } else {
-            const newRating = new this.ratingModel({
-                user: userId,
-                manga: mangaId,
-                score: createRatingDto.score
-            });
-            await newRating.save();
+        try {
+            if (existingRating) {
+                manga.totalRating = manga.totalRating - existingRating.score + createRatingDto.score;
+                existingRating.score = createRatingDto.score;
+                await existingRating.save();
+            } else {
+                const newRating = new this.ratingModel({
+                    user: userId,
+                    manga: mangaId,
+                    score: createRatingDto.score
+                });
+                await newRating.save();
 
-            manga.totalRating += createRatingDto.score;
-            manga.ratingCount += 1;
+                user.ratings.push(newRating);
+                manga.totalRating += createRatingDto.score;
+                manga.ratingCount += 1;
+            }
+
+            manga.averageRating = manga.totalRating / manga.ratingCount;
+            
+            await Promise.all([
+                manga.save(),
+                user.save()
+            ]);
+        } catch (error) {
+            throw new HttpException('Failed to rate manga', HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
-        manga.averageRating = manga.totalRating / manga.ratingCount;
-        await manga.save();
     }
 
     async getMangaRating(mangaId: string): Promise<{ averageRating: number; totalRatings: number }> {

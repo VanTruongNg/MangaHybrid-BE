@@ -1,11 +1,11 @@
 export enum StatusEnum {
-    INPROGRESS = 'In Progress',
-    COMPLETED = 'Completed',
-    DROPPED = 'Dropped'
+    ONGOING = 'ongoing',
+    COMPLETED = 'completed',
+    DROPPED = 'dropped'
 }
 
 export enum ApprovalStatus {
-    PENDING = 'Pending',
-    APPROVED = 'Approved',
-    REJECTED = 'Rejected',
+    PENDING = 'pending',
+    APPROVED = 'approved',
+    REJECTED = 'rejected',
 }
