@@ -60,8 +60,8 @@ export class UserController {
     ): Promise<void> {
         try {
             const userId = req.user._id;
-            const { mangaId, chapterId } = updateReadingHistoryDTO;
-            await this.userService.updateReadingHistory(userId, mangaId, chapterId);
+            const { chapterId } = updateReadingHistoryDTO;
+            await this.userService.updateReadingHistory(userId, chapterId);
         } catch (error) {
             throw error instanceof HttpException ? error : new HttpException(`Lỗi hệ thống`, HttpStatus.INTERNAL_SERVER_ERROR);
         }

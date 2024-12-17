@@ -92,60 +92,76 @@ export class UserService {
         await user.save()
     }
 
-    async updateReadingHistory(userId: string, mangaId: string, chapterId: string) {
-        const [user, manga, chapter] = await Promise.all([
+    async updateReadingHistory(userId: string, chapterId: string) {
+        const [user, chapter] = await Promise.all([
             this.userModel.findById(userId),
-            this.mangaModel.findById(mangaId),
-            this.chapterModel.findById(chapterId)
+            this.chapterModel.findById(chapterId).populate('manga')
         ]);
 
-        if (!user || !manga || !chapter) {
+        if (!user || !chapter) {
             throw new HttpException('INVALID_DATA', HttpStatus.NOT_FOUND);
         }
 
-        if (chapter.manga.toString() !== mangaId) {
-            throw new HttpException('CHAPTER.INVALID_MANGA', HttpStatus.BAD_REQUEST);
+        const mangaId = chapter.manga;
+
+        const existingManga = await this.userModel.findOne({
+            _id: userId,
+            'readingHistory.manga': mangaId
+        });
+
+        try {
+            if (!existingManga) {
+                await this.userModel.findByIdAndUpdate(
+                    userId,
+                    {
+                        $push: {
+                            readingHistory: {
+                                $each: [{
+                                    manga: mangaId,
+                                    chapters: [{
+                                        chapter: chapterId,
+                                        readAt: new Date()
+                                    }],
+                                    updatedAt: new Date()
+                                }],
+                                $position: 0
+                            }
+                        }
+                    },
+                    { new: true }
+                );
+            } else {
+                const existingChapter = await this.userModel.findOne({
+                    _id: userId,
+                    'readingHistory.manga': mangaId,
+                    'readingHistory.chapters.chapter': chapterId
+                });
+
+                if (!existingChapter) {
+                    await this.userModel.findOneAndUpdate(
+                        { 
+                            _id: userId,
+                            'readingHistory.manga': mangaId
+                        },
+                        {
+                            $push: {
+                                'readingHistory.$.chapters': {
+                                    chapter: chapterId,
+                                    readAt: new Date()
+                                }
+                            },
+                            $set: {
+                                'readingHistory.$.updatedAt': new Date()
+                            }
+                        },
+                        { new: true }
+                    );
+                }
+            }
+        } catch (error) {
+            console.error('Error updating reading history:', error);
+            throw new HttpException('Failed to update reading history', HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
-        await this.userModel.updateOne(
-            { 
-                _id: userId,
-                'readingHistory.manga': { $ne: mangaId }
-            },
-            {
-                $push: {
-                    readingHistory: {
-                        $each: [{ manga: mangaId, chapter: chapterId, updatedAt: new Date() }],
-                        $position: 0,
-                        $slice: 50
-                    }
-                }
-            }
-        );
-
-        await this.userModel.updateOne(
-            { 
-                _id: userId,
-                'readingHistory.manga': mangaId
-            },
-            {
-                $set: {
-                    'readingHistory.$.chapter': chapterId,
-                    'readingHistory.$.updatedAt': new Date()
-                }
-            }
-        );
-
-        await Promise.all([
-            this.chapterModel.updateOne(
-                { _id: chapterId },
-                { $inc: { views: 1 } }
-            ),
-            this.mangaModel.updateOne(
-                { _id: mangaId },
-                { $inc: { views: 1 } }
-            )
-        ]);
     }
 
     async toggleUserInteraction(
