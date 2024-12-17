@@ -23,16 +23,36 @@ export class UserService {
         return this.userModel.find()
     }
 
-    async findById(id: string): Promise<UserProfileDTO> {
-        const user = await this.userModel
-            .findById(id)
-            .populate('following', '_id name email avatarUrl')
-            .populate('followers', '_id name email avatarUrl')
-            .populate('uploadedManga', '_id title author coverImg')
-            .populate('favoritesManga', '_id title author coverImg')
-            .populate('dislikedManga', '_id title author coverImg')
-            .populate('followingManga', '_id title author coverImg')
-            .populate({
+    async findById(id: string, isOwnProfile: boolean = false): Promise<UserProfileDTO> {
+        const basePopulate = [
+            {
+                path: 'uploadedManga',
+                select: '_id title author coverImg'
+            },
+            {
+                path: 'following',
+                select: '_id name avatarUrl'
+            },
+            {
+                path: 'followers',
+                select: '_id name avatarUrl'
+            }
+        ];
+
+        const privatePopulate = isOwnProfile ? [
+            {
+                path: 'favoritesManga',
+                select: '_id title author coverImg'
+            },
+            {
+                path: 'dislikedManga',
+                select: '_id title author coverImg'
+            },
+            {
+                path: 'followingManga',
+                select: '_id title author coverImg'
+            },
+            {
                 path: 'readingHistory',
                 populate: [
                     {
@@ -44,22 +64,26 @@ export class UserService {
                         select: '_id chapterName createdAt'
                     }
                 ]
-            })
-            .populate('comments')
-            .populate({
+            },
+            {
                 path: 'ratings',
                 populate: {
-                    path: 'user manga',
-                    select: '_id name email avatarUrl title author'
+                    path: 'manga',
+                    select: '_id title author'
                 }
-            })
-            .select('-password')
+            }
+        ] : [];
+
+        const user = await this.userModel
+            .findById(id)
+            .populate([...basePopulate, ...privatePopulate])
+            .select(isOwnProfile ? '-password' : '_id name email avatarUrl uploadedManga following followers')
             .lean();
-    
+
         if (!user) {
             throw new HttpException(`USER.Không tìm thấy User có ID: ${id}`, HttpStatus.NOT_FOUND);
         }
-    
+
         return plainToClass(UserProfileDTO, user);
     }
 
