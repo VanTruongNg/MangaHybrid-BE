@@ -34,10 +34,16 @@ export class UserService {
             .populate('followingManga', '_id title author coverImg')
             .populate({
                 path: 'readingHistory',
-                populate: {
-                    path: 'manga chapter',
-                    select: '_id title author coverImg number chapterTitle chapterType'
-                }
+                populate: [
+                    {
+                        path: 'manga',
+                        select: '_id title author coverImg'
+                    },
+                    {
+                        path: 'chapters.chapter',
+                        select: '_id chapterName createdAt'
+                    }
+                ]
             })
             .populate('comments')
             .populate({
