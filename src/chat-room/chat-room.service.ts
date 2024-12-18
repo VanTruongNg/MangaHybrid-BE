@@ -170,27 +170,28 @@ export class ChatRoomService implements OnModuleInit {
     }
 
     async addPrivateMessage(senderId: string, receiverId: string, content: string): Promise<{room: ChatRoom, message: Message}> {
-        const room = await this.createPrivateRoom([senderId, receiverId]);
-
-        const sender = await this.userModel.findById(senderId)
-            .select('_id name avatarUrl');
+        const [room, sender] = await Promise.all([
+            this.createPrivateRoom([senderId, receiverId]),
+            this.userModel.findById(senderId).select('_id name avatarUrl')
+        ]);
 
         if (!sender) {
             throw new HttpException('CHAT_ROOM.SENDER_NOT_FOUND', HttpStatus.NOT_FOUND);
         }
 
-        const newMessage = await this.messageModel.create({
-            roomId: room,
-            sender: sender,
-            content,
-            readBy: [sender]
-        });
-
-        await this.chatRoomModel.findByIdAndUpdate(room._id, {
-            lastMessage: content,
-            lastSender: sender,
-            lastMessageAt: new Date()
-        });
+        const [newMessage] = await Promise.all([
+            this.messageModel.create({
+                roomId: room,
+                sender: sender,
+                content,
+                readBy: [sender]
+            }),
+            this.chatRoomModel.findByIdAndUpdate(room._id, {
+                lastMessage: content,
+                lastSender: sender,
+                lastMessageAt: new Date()
+            })
+        ]);
 
         await newMessage.populate('sender', '_id name avatarUrl');
 
