@@ -18,11 +18,21 @@ export class SearchService {
 
     return this.mangaModel.aggregate([
       {
+        $lookup: {
+          from: 'users',
+          localField: 'uploader',
+          foreignField: '_id',
+          as: 'uploader',
+        },
+      },
+      { $unwind: '$uploader' },
+      {
         $match: {
           $or: [
             { title: { $regex: regexPattern } },
             { title: { $regex: query, $options: 'i' } },
             { description: { $regex: query, $options: 'i' } },
+            { author: { $regex: query, $options: 'i' } },
           ],
         },
       },
@@ -34,26 +44,20 @@ export class SearchService {
               { $cond: [{ $regexMatch: { input: '$title', regex: new RegExp(`^${query}`, 'i') } }, 8, 0] },
               { $cond: [{ $regexMatch: { input: '$title', regex: new RegExp(query, 'i') } }, 5, 0] },
               { $cond: [{ $regexMatch: { input: '$title', regex: regexPattern } }, 3, 0] },
-              { $cond: [{ $regexMatch: { input: '$description', regex: new RegExp(query, 'i') } }, 1, 0] }, 
+              { $cond: [{ $regexMatch: { input: '$description', regex: new RegExp(query, 'i') } }, 1, 0] },
+              { $cond: [{ $regexMatch: { input: '$author', regex: exactPattern } }, 7, 0] },
+              { $cond: [{ $regexMatch: { input: '$author', regex: new RegExp(query, 'i') } }, 4, 0] },
             ],
           },
         },
       },
       { $sort: { score: -1 } },
       {
-        $lookup: {
-          from: 'users',
-          localField: 'uploader',
-          foreignField: '_id',
-          as: 'uploader',
-        },
-      },
-      { $unwind: '$uploader' },
-      {
         $project: {
           _id: 1,
           title: 1,
           coverImage: 1,
+          author: 1,
           'uploader._id': 1,
           'uploader.username': 1,
           'uploader.avatar': 1,
