@@ -59,8 +59,8 @@ export class SearchService {
           coverImage: 1,
           author: 1,
           'uploader._id': 1,
-          'uploader.username': 1,
-          'uploader.avatar': 1,
+          'uploader.name': 1,
+          'uploader.avatarUrl': 1,
           score: 1,
         },
       },
@@ -86,10 +86,10 @@ export class SearchService {
         $addFields: {
           score: {
             $add: [
-              { $cond: [{ $regexMatch: { input: '$username', regex: exactPattern } }, 10, 0] },  // Match chính xác
-              { $cond: [{ $regexMatch: { input: '$username', regex: new RegExp(`^${query}`, 'i') } }, 8, 0] },  // Match đầu chuỗi
-              { $cond: [{ $regexMatch: { input: '$username', regex: new RegExp(query, 'i') } }, 5, 0] },  // Match một phần
-              { $cond: [{ $regexMatch: { input: '$username', regex: regexPattern } }, 3, 0] },  // Fuzzy match
+              { $cond: [{ $regexMatch: { input: '$name', regex: exactPattern } }, 10, 0] },  // Match chính xác
+              { $cond: [{ $regexMatch: { input: '$name', regex: new RegExp(`^${query}`, 'i') } }, 8, 0] },  // Match đầu chuỗi
+              { $cond: [{ $regexMatch: { input: '$name', regex: new RegExp(query, 'i') } }, 5, 0] },  // Match một phần
+              { $cond: [{ $regexMatch: { input: '$name', regex: regexPattern } }, 3, 0] },  // Fuzzy match
               { $cond: [{ $regexMatch: { input: '$email', regex: new RegExp(query, 'i') } }, 1, 0] },  // Match email
             ],
           },
@@ -99,8 +99,8 @@ export class SearchService {
       {
         $project: {
           _id: 1,
-          username: 1,
-          avatar: 1,
+          name: 1,
+          avatarUrl: 1,
           score: 1,
         },
       },
