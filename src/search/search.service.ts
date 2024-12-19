@@ -56,7 +56,7 @@ export class SearchService {
         $project: {
           _id: 1,
           title: 1,
-          coverImage: 1,
+          coverImg: 1,
           author: 1,
           'uploader._id': 1,
           'uploader.name': 1,
