@@ -7,6 +7,7 @@ import { AwsModule } from 'src/aws/aws.module';
 import { GenresModule } from 'src/genres/genres.module';
 import { UserModule } from 'src/user/user.module';
 import { AuthModule } from 'src/auth/auth.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { AuthModule } from 'src/auth/auth.module';
     AwsModule,
     GenresModule,
     UserModule,
-    AuthModule
+    AuthModule,
+    NotificationModule
   ],
   providers: [MangaService],
   controllers: [MangaController],
