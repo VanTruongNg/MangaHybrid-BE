@@ -9,6 +9,8 @@ import { User } from 'src/auth/schemas/user.schema';
 import { ApprovalStatus } from './schemas/status.enum';
 import * as sharp from 'sharp';
 import * as mongoose from 'mongoose';
+import { NotificationService } from 'src/notification/notification.service';
+import { NotificationType } from 'src/notification/schema/notification.schema';
 
 interface PaginatedResult<T> {
     mangas: T[];
@@ -24,7 +26,8 @@ export class MangaService {
         @InjectModel(Genre.name) private readonly genreModel: Model<Genre>,
         @InjectModel(User.name) private readonly userModel: Model<User>,
         @InjectModel(ViewLog.name) private readonly viewLogModel: Model<ViewLog>,
-        private awsService: AwsService
+        private awsService: AwsService,
+        private notificationService: NotificationService
     ) {}
 
     async findAll(): Promise<Manga[]> {
@@ -570,7 +573,12 @@ export class MangaService {
             throw new NotFoundException (`Không tìm thấy Uploader có ID: ${uploader}`)
         }
 
-        const newManga = new this.mangaModel({...mangaData, genre, uploader})
+        const newManga = new this.mangaModel({
+            ...mangaData, 
+            genre, 
+            uploader,
+            approvalStatus: user.role === 'admin' ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING
+        })
         const savedManga = await newManga.save()
 
         if (genre && genre.length > 0) {
@@ -615,7 +623,21 @@ export class MangaService {
             }, bannerFileName);
             savedManga.bannerImg = bannerImgUrl;
 
-            return await savedManga.save();
+            const finalManga = await savedManga.save();
+
+            if (finalManga.approvalStatus === ApprovalStatus.PENDING) {
+                const admins = await this.userModel.find({ role: 'admin' });
+                if (admins.length > 0) {
+                    await this.notificationService.createNotification({
+                        type: NotificationType.NEW_MANGA_PENDING,
+                        message: `Manga mới "${finalManga.title}" đang chờ duyệt`,
+                        recipients: admins.map(admin => admin._id),
+                        manga: finalManga._id
+                    });
+                }
+            }
+
+            return finalManga;
         } catch (error) {
             throw new InternalServerErrorException(`Upload file thất bại: ${error.message}`);
         }
