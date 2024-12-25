@@ -311,4 +311,14 @@ export class MangaController {
     async approveManga(@Param('id') id: string): Promise<void> {
         return this.mangaService.approveMangaById(id)
     }
+
+    @Get('pending')
+    @Auth({ roles:[Role.ADMIN], requireVerified: true })
+    @ApiOperation({ summary: 'Lấy danh sách manga chờ phê duyệt' })
+    async getPendingMangas(
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10
+    ) {
+        return this.mangaService.getPendingMangas(page, limit);
+    }
 }
