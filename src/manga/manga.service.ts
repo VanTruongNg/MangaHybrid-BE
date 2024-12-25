@@ -1043,4 +1043,40 @@ export class MangaService {
             totalManga
         };
     }
+
+    async getPendingMangas(page: number = 1, limit: number = 10): Promise<{
+        mangas: Manga[],
+        total: number,
+        page: number,
+        totalPages: number
+    }> {
+        const skip = (page - 1) * limit;
+
+        const [mangas, total] = await Promise.all([
+            this.mangaModel.find({ approvalStatus: ApprovalStatus.PENDING })
+                .populate([
+                    {
+                        path: 'uploader',
+                        select: '_id name email'
+                    },
+                    {
+                        path: 'genre',
+                        select: '_id name'
+                    }
+                ])
+                .select('_id title description coverImg bannerImg author genre uploader createdAt')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            this.mangaModel.countDocuments({ approvalStatus: ApprovalStatus.PENDING })
+        ]);
+
+        return {
+            mangas,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit)
+        };
+    }
 }

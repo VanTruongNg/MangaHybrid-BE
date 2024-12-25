@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Genre } from './schemas/genre.schema';
 import { Model } from 'mongoose';
@@ -22,8 +22,16 @@ export class GenresService {
         return genre
     }
 
-    async createGenre (createGenreDTO: GenresDTO): Promise<Genre> {
-        const createGenre = await this.genreModel.create(createGenreDTO)
-        return createGenre
+    async createGenre(createGenreDTO: GenresDTO): Promise<Genre> {
+        const existingGenre = await this.genreModel.findOne({
+            name: { $regex: new RegExp(`^${createGenreDTO.name}$`, 'i') }
+        });
+
+        if (existingGenre) {
+            throw new ConflictException(`Thể loại "${createGenreDTO.name}" đã tồn tại`);
+        }
+
+        const createGenre = await this.genreModel.create(createGenreDTO);
+        return createGenre;
     }
 }
