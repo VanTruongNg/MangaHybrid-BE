@@ -312,13 +312,21 @@ export class MangaController {
         return this.mangaService.approveMangaById(id)
     }
 
-    @Get('pending')
-    @Auth({ roles:[Role.ADMIN], requireVerified: true })
+    @Get('admin/pending')
     @ApiOperation({ summary: 'Lấy danh sách manga chờ phê duyệt' })
+    @Auth({ roles:[Role.ADMIN], requireVerified: true })
     async getPendingMangas(
-        @Query('page') page: number = 1,
-        @Query('limit') limit: number = 10
+        @Query('page', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) page: number = 1,
+        @Query('limit', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) limit: number = 10
     ) {
+        if (page < 1) {
+            throw new BadRequestException('Số trang phải lớn hơn 0');
+        }
+
+        if (limit < 1 || limit > 100) {
+            throw new BadRequestException('Số lượng manga mỗi trang phải từ 1 đến 100');
+        }
+
         return this.mangaService.getPendingMangas(page, limit);
     }
 }
