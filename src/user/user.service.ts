@@ -27,7 +27,7 @@ export class UserService {
         const basePopulate = [
             {
                 path: 'uploadedManga',
-                select: '_id title author coverImg'
+                select: '_id title author coverImg approvalStatus rejectReason'
             },
             {
                 path: 'following',

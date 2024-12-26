@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Manga, ViewLog } from './schemas/manga.schema';
 import { Model } from 'mongoose';
@@ -1078,5 +1078,65 @@ export class MangaService {
             page,
             totalPages: Math.ceil(total / limit)
         };
+    }
+
+    async deleteManga(mangaId: string, userId: string): Promise<void> {
+        try {
+            const mangaObjectId = new mongoose.Types.ObjectId(mangaId);
+            const userObjectId = new mongoose.Types.ObjectId(userId);
+
+            const [manga, user] = await Promise.all([
+                this.mangaModel.findById(mangaObjectId)
+                    .populate('uploader'),
+                this.userModel.findById(userObjectId)
+                    .select('role')
+            ]);
+            
+            if (!manga) {
+                throw new NotFoundException(`Manga với ID: ${mangaId} không tồn tại`);
+            }
+
+            if (!user) {
+                throw new NotFoundException(`User với ID: ${userId} không tồn tại`);
+            }
+
+            const isAdmin = user.role === 'admin';
+            const isUploader = manga.uploader.toString() === userId;
+
+            if (!isAdmin && !isUploader) {
+                throw new ForbiddenException('Bạn không có quyền xóa manga này!');
+            }
+
+            if (manga.genre && manga.genre.length > 0) {
+                await this.genreModel.updateMany(
+                    { _id: { $in: manga.genre } },
+                    { $pull: { manga: mangaObjectId } }
+                );
+            }
+
+            await this.userModel.updateMany(
+                {},
+                {
+                    $pull: {
+                        uploadedManga: mangaObjectId,
+                        favoritesManga: mangaObjectId,
+                        dislikedManga: mangaObjectId,
+                        followingManga: mangaObjectId,
+                        'readingHistory.manga': mangaObjectId
+                    }
+                }
+            );
+
+            await Promise.all([
+                this.viewLogModel.deleteMany({ manga: mangaObjectId }),
+                this.mangaModel.findByIdAndDelete(mangaObjectId)
+            ]);
+
+        } catch (error) {
+            if (error.name === 'CastError') {
+                throw new BadRequestException('ID không hợp lệ');
+            }
+            throw new InternalServerErrorException(`Xóa manga thất bại: ${error.message}`);
+        }
     }
 }
