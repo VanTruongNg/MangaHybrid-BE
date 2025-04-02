@@ -28,7 +28,12 @@ import { SearchModule } from './search/search.module';
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService): Promise<BullRootModuleOptions> => ({
-        redis: configService.get<string>('REDIS_URL')
+        redis: {
+          host: configService.get<string>('REDIS_HOST'),
+          port: configService.get<number>('REDIS_PORT'),
+          password: configService.get<string>('REDIS_PASSWORD'),
+          tls: configService.get<boolean>('REDIS_TLS') ? {} : undefined,
+        }
       }),
       inject: [ConfigService],
     }),
