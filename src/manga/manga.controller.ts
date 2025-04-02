@@ -7,7 +7,7 @@ import { Role } from 'src/auth/schemas/role.enum';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { CreateMangaDTO } from './dto/create-manga.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import JSZip = require('jszip');
 import axios from 'axios';
 import { Response } from 'express';
@@ -19,13 +19,110 @@ export class MangaController {
         readonly mangaService: MangaService
     ) {}
 
-    @Get()
-    @ApiOperation({ summary: 'Lấy tất cả manga' })
-    @Auth({ roles:[Role.ADMIN], requireVerified: true })
-    async getAll(): Promise<Manga[]> {
-        return this.mangaService.findAll();
+    @Post()
+    @Auth({ roles: [Role.ADMIN], requireVerified: true })
+    @UseInterceptors(FileFieldsInterceptor([
+        { name: 'coverImage', maxCount: 1 },
+        { name: 'bannerImage', maxCount: 1 }
+    ]))
+    @ApiOperation({ summary: 'Tạo manga mới' })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                title: { type: 'string' },
+                description: { type: 'string' },
+                genres: { type: 'array', items: { type: 'string' } },
+                status: { type: 'string' },
+                coverImage: {
+                    type: 'string',
+                    format: 'binary',
+                },
+                bannerImage: {
+                    type: 'string',
+                    format: 'binary',
+                }
+            },
+        },
+    })
+    async createManga(
+        @UploadedFiles() files: { coverImage?: Express.Multer.File[], bannerImage?: Express.Multer.File[] },
+        @Body() createMangaDTO: CreateMangaDTO
+    ): Promise<Manga> {
+        return this.mangaService.createManga(files, createMangaDTO);
     }
-    
+
+    @Get()
+    @ApiOperation({ summary: 'Lấy danh sách manga' })
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'limit', required: false, type: Number })
+    @ApiQuery({ name: 'genre', required: false, type: String })
+    @ApiQuery({ name: 'status', required: false, type: String })
+    @ApiQuery({ name: 'search', required: false, type: String })
+    async getMangas(
+        @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+        @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+        @Query('genre') genre?: string,
+        @Query('status') status?: string,
+        @Query('search') search?: string
+    ): Promise<{ mangas: Manga[], total: number }> {
+        return this.mangaService.getMangas(page, limit, genre, status, search);
+    }
+
+    @Get(':id')
+    @ApiOperation({ summary: 'Lấy thông tin chi tiết manga' })
+    async getManga(@Param('id') id: string): Promise<Manga> {
+        return this.mangaService.getManga(id);
+    }
+
+    @Put(':id')
+    @Auth({ roles: [Role.ADMIN], requireVerified: true })
+    @UseInterceptors(FileFieldsInterceptor([
+        { name: 'coverImage', maxCount: 1 },
+        { name: 'bannerImage', maxCount: 1 }
+    ]))
+    @ApiOperation({ summary: 'Cập nhật thông tin manga' })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                title: { type: 'string' },
+                description: { type: 'string' },
+                genres: { type: 'array', items: { type: 'string' } },
+                status: { type: 'string' },
+                coverImage: {
+                    type: 'string',
+                    format: 'binary',
+                },
+                bannerImage: {
+                    type: 'string',
+                    format: 'binary',
+                }
+            },
+        },
+    })
+    async updateManga(
+        @Param('id') id: string,
+        @UploadedFiles() files: { coverImage?: Express.Multer.File[], bannerImage?: Express.Multer.File[] },
+        @Body() updateMangaDTO: CreateMangaDTO
+    ): Promise<Manga> {
+        return this.mangaService.updateManga(id, files, updateMangaDTO);
+    }
+
+    @Get(':id/chapters')
+    @ApiOperation({ summary: 'Lấy danh sách chapter của manga' })
+    async getMangaChapters(@Param('id') id: string): Promise<any> {
+        return this.mangaService.getMangaChapters(id);
+    }
+
+    @Get(':id/related')
+    @ApiOperation({ summary: 'Lấy danh sách manga liên quan' })
+    async getRelatedMangas(@Param('id') id: string): Promise<Manga[]> {
+        return this.mangaService.getRelatedMangas(id);
+    }
+
     @Get('home/web')
     @ApiOperation({ summary: 'Lấy dữ liệu trang chủ cho web' })
     async getWebHomeData(): Promise<{
@@ -88,40 +185,6 @@ export class MangaController {
     @ApiOperation({ summary: 'Lấy manga theo id' })
     async getById (@Param('id') id: string): Promise<Manga>{
         return this.mangaService.findById(id)
-    }
-
-    @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
-    @ApiOperation({ summary: 'Tạo manga' })
-    @UseInterceptors(FileFieldsInterceptor([
-        { name: 'coverImg', maxCount: 1 },
-        { name: 'bannerImg', maxCount: 1 }
-    ], {
-        limits: {
-            fileSize: 5 * 1024 * 1024
-        },
-        fileFilter: (req, file, callback) => {
-            if (!file.mimetype.match(/^image\/(jpeg|png)$/)) {
-                callback(new BadRequestException('Chỉ chấp nhận file ảnh định dạng JPG hoặc PNG'), false);
-                return;
-            }
-            callback(null, true);
-        }
-    }))
-    @Post('/create-manga')
-    async createManga(
-        @Req() req: any,
-        @Body() createMangaDTO: CreateMangaDTO,
-        @UploadedFiles() files: { coverImg: Express.Multer.File[], bannerImg: Express.Multer.File[] }
-    ): Promise<Manga> {
-        if (!files.coverImg?.[0] || !files.bannerImg?.[0]) {
-            throw new BadRequestException('Hãy thêm đầy đủ ảnh bìa và ảnh banner!')
-        }
-
-        const user = req.user._id
-        return await this.mangaService.createManga(user, createMangaDTO, {
-            cover: files.coverImg[0],
-            banner: files.bannerImg[0]
-        })
     }
 
     @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
