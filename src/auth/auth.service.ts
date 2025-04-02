@@ -270,7 +270,8 @@ export class AuthService {
                 throw new HttpException('LOGIN.Không tìm thấy User', HttpStatus.NOT_FOUND);
             }
     
-            await this.emailQueue.add('sendEmailVerification', {
+            console.log('Adding email verification job to queue...');
+            const job = await this.emailQueue.add('sendEmailVerification', {
                 email,
                 type: 'verification',
                 name: user.name
@@ -283,6 +284,7 @@ export class AuthService {
                     delay: 1000
                 }
             });
+            console.log('Job added successfully:', job.id);
     
             return true;
         } else {

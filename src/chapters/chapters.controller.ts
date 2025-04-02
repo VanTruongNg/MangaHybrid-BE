@@ -6,7 +6,7 @@ import { CreateChapterDTO } from './dto/create-chapter.dto';
 import { UpdateChaptersInfoDTO } from './dto/update-info.dto';
 import { Role } from 'src/auth/schemas/role.enum';
 import { Auth } from 'src/auth/decorators/auth.decorator';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Response } from 'express';
 
 @ApiTags('Chapters')
@@ -15,6 +15,74 @@ export class ChaptersController {
     constructor(
         private readonly chapterService: ChaptersService,
     ) {}
+
+    @Post(':mangaId')
+    @Auth({ roles: [Role.ADMIN], requireVerified: true })
+    @UseInterceptors(FilesInterceptor('files'))
+    @ApiOperation({ summary: 'Tạo chapter mới cho manga' })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                files: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                        format: 'binary',
+                    },
+                },
+                title: { type: 'string' },
+                chapterNumber: { type: 'number' },
+                type: { type: 'string', enum: Object.values(ChapterType) }
+            },
+        },
+    })
+    async createChapter(
+        @Param('mangaId') mangaId: string,
+        @UploadedFiles() files: Express.Multer.File[],
+        @Body() createChapterDTO: CreateChapterDTO
+    ): Promise<Chapter> {
+        return this.chapterService.createChapter(mangaId, files, createChapterDTO);
+    }
+
+    @Get(':mangaId')
+    @ApiOperation({ summary: 'Lấy danh sách chapter của manga' })
+    async getChapters(@Param('mangaId') mangaId: string): Promise<Chapter[]> {
+        return this.chapterService.getChapters(mangaId);
+    }
+
+    @Get(':mangaId/:chapterId')
+    @ApiOperation({ summary: 'Lấy thông tin chi tiết của chapter' })
+    async getChapter(
+        @Param('mangaId') mangaId: string,
+        @Param('chapterId') chapterId: string
+    ): Promise<Chapter> {
+        return this.chapterService.getChapter(mangaId, chapterId);
+    }
+
+    @Patch(':mangaId/:chapterId')
+    @Auth({ roles: [Role.ADMIN], requireVerified: true })
+    @ApiOperation({ summary: 'Cập nhật thông tin chapter' })
+    @ApiBody({ type: UpdateChaptersInfoDTO })
+    async updateChapter(
+        @Param('mangaId') mangaId: string,
+        @Param('chapterId') chapterId: string,
+        @Body() updateChapterDTO: UpdateChaptersInfoDTO
+    ): Promise<Chapter> {
+        return this.chapterService.updateChapter(mangaId, chapterId, updateChapterDTO);
+    }
+
+    @Get(':mangaId/:chapterId/images')
+    @ApiOperation({ summary: 'Lấy danh sách ảnh của chapter' })
+    async getChapterImages(
+        @Param('mangaId') mangaId: string,
+        @Param('chapterId') chapterId: string,
+        @Res() res: Response
+    ): Promise<void> {
+        const images = await this.chapterService.getChapterImages(mangaId, chapterId);
+        res.json(images);
+    }
 
     @Get()
     @ApiOperation({ summary: 'Lấy tất cả chapter' })

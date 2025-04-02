@@ -24,7 +24,6 @@ export class UserController {
     }
 
     @Get('/me')
-    @Auth()
     @ApiOperation({ summary: 'Lấy thông tin cá nhân' })
     async getMyProfile(@Req() req: any): Promise<UserProfileDTO> {
         const userId = req.user._id;
