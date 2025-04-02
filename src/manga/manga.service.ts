@@ -1103,7 +1103,7 @@ export class MangaService {
             const isAdmin = user.role === 'admin';
             const isUploader = manga.uploader.toString() === userId;
 
-            if (!isAdmin && !isUploader) {
+            if (!isAdmin || !isUploader) {
                 throw new ForbiddenException('Bạn không có quyền xóa manga này!');
             }
 
