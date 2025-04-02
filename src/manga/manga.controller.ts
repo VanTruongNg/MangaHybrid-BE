@@ -77,6 +77,40 @@ export class MangaController {
         };
     }
 
+    @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
+    @ApiOperation({ summary: 'Tạo manga' })
+    @UseInterceptors(FileFieldsInterceptor([
+        { name: 'coverImg', maxCount: 1 },
+        { name: 'bannerImg', maxCount: 1 }
+    ], {
+        limits: {
+            fileSize: 5 * 1024 * 1024
+        },
+        fileFilter: (req, file, callback) => {
+            if (!file.mimetype.match(/^image\/(jpeg|png)$/)) {
+                callback(new BadRequestException('Chỉ chấp nhận file ảnh định dạng JPG hoặc PNG'), false);
+                return;
+            }
+            callback(null, true);
+        }
+    }))
+    @Post('/create-manga')
+    async createManga(
+        @Req() req: any,
+        @Body() createMangaDTO: CreateMangaDTO,
+        @UploadedFiles() files: { coverImg: Express.Multer.File[], bannerImg: Express.Multer.File[] }
+    ): Promise<Manga> {
+        if (!files.coverImg?.[0] || !files.bannerImg?.[0]) {
+            throw new BadRequestException('Hãy thêm đầy đủ ảnh bìa và ảnh banner!')
+        }
+
+        const user = req.user._id
+        return await this.mangaService.createManga(user, createMangaDTO, {
+            cover: files.coverImg[0],
+            banner: files.bannerImg[0]
+        })
+    }
+
     @Get('/:id')
     @ApiOperation({ summary: 'Lấy manga theo id' })
     async getById (@Param('id') id: string): Promise<Manga>{
