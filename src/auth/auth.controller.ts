@@ -32,7 +32,7 @@ export class AuthController {
         @Headers('device-id') deviceId: string
     ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
         if (!deviceId) {
-            throw new BadRequestException('Device ID is required');
+            deviceId = 'web_f8d7e6c5-a4b3-2d1c-9e0f-8b7a6c5d4e3f';
         }
         
         const token = await this.authService.login(loginDTO, deviceId);
