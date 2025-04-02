@@ -8,6 +8,7 @@ import { Role } from 'src/auth/schemas/role.enum';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserProfileDTO } from './dto/user-profile.dto';
 import { UpdateReadingHistoryDTO } from './dto/update-reading-history.dto';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('User')
 @Controller('user') 
@@ -24,6 +25,7 @@ export class UserController {
     }
 
     @Get('/me')
+    @Auth()
     @ApiOperation({ summary: 'Lấy thông tin cá nhân' })
     async getMyProfile(@Req() req: any): Promise<UserProfileDTO> {
         const userId = req.user._id;

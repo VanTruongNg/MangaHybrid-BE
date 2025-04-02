@@ -1132,6 +1132,8 @@ export class MangaService {
                 this.mangaModel.findByIdAndDelete(mangaObjectId)
             ]);
 
+            
+
         } catch (error) {
             if (error.name === 'CastError') {
                 throw new BadRequestException('ID không hợp lệ');
