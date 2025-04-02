@@ -3,7 +3,7 @@ import { CommentService } from './comment.service';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { Comment } from './schema/comment.schema';
-import { ApiOperation, ApiTags, ApiBody } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Comment')
 @Controller('comment')
@@ -12,22 +12,18 @@ export class CommentController {
         private readonly commentService: CommentService
     ) {}
 
-    @Post(':mangaId')
+    @Post('manga/:mangaId')
+    @ApiOperation({ summary: 'Tạo comment cho manga' })
     @Auth({ requireVerified: true })
-    @ApiOperation({ summary: 'Tạo bình luận cho manga' })
-    @ApiBody({ type: CreateCommentDto })
-    async createComment(
+    async createMangaComment(
+        @Req() req: any,
         @Param('mangaId') mangaId: string,
-        @Body() createCommentDto: CreateCommentDto,
-        @Req() req: any
+        @Body() createCommentDto: CreateCommentDto
     ): Promise<Comment> {
-        return this.commentService.createComment(mangaId, createCommentDto, req.user._id);
-    }
-
-    @Get(':mangaId')
-    @ApiOperation({ summary: 'Lấy danh sách bình luận của manga' })
-    async getComments(@Param('mangaId') mangaId: string): Promise<Comment[]> {
-        return this.commentService.getComments(mangaId);
+            return await this.commentService.createComment(req.user._id, {
+                ...createCommentDto,
+                mangaId
+            });
     }
 
     @Post('chapter/:chapterId')
