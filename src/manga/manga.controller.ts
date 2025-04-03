@@ -1,5 +1,6 @@
 import { 
-    BadRequestException, Body, Controller, Get, Param, Post, Put, Req, Res, UploadedFile, UploadedFiles, UseInterceptors, Query, ParseIntPipe, HttpStatus 
+    BadRequestException, Body, Controller, Get, Param, Post, Put, Req, Res, UploadedFile, UploadedFiles, UseInterceptors, Query, ParseIntPipe, HttpStatus, 
+    Delete
 } from '@nestjs/common';
 import { MangaService } from './manga.service';
 import { Manga } from './schemas/manga.schema';
@@ -321,5 +322,12 @@ export class MangaController {
         }
 
         return this.mangaService.getPendingMangas(page, limit);
+    }
+
+    @Auth({ roles:[Role.ADMIN, Role.UPLOADER], requireVerified: true })
+    @ApiOperation({ summary: 'Xóa manga' })
+    @Delete('/:id')
+    async deleteManga(@Param('id') id: string, @Req() req: any): Promise<void> {
+        return this.mangaService.deleteManga(id, req.user._id)
     }
 }

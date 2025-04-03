@@ -1082,38 +1082,45 @@ export class MangaService {
 
     async deleteManga(mangaId: string, userId: string): Promise<void> {
         try {
-            const mangaObjectId = new mongoose.Types.ObjectId(mangaId);
-            const userObjectId = new mongoose.Types.ObjectId(userId);
+            const mangaObjectId = new mongoose.Types.ObjectId(mangaId);//1
+            const userObjectId = new mongoose.Types.ObjectId(userId);//2
 
             const [manga, user] = await Promise.all([
                 this.mangaModel.findById(mangaObjectId)
                     .populate('uploader'),
                 this.userModel.findById(userObjectId)
                     .select('role')
-            ]);
+            ]);//3
             
+
+            //4
             if (!manga) {
-                throw new NotFoundException(`Manga với ID: ${mangaId} không tồn tại`);
+                throw new NotFoundException(`Manga với ID: ${mangaId} không tồn tại`);//5
             }
 
+            //6
             if (!user) {
-                throw new NotFoundException(`User với ID: ${userId} không tồn tại`);
+                throw new NotFoundException(`User với ID: ${userId} không tồn tại`);//7
             }
 
-            const isAdmin = user.role === 'admin';
-            const isUploader = manga.uploader.toString() === userId;
+            const isAdmin = user.role === 'admin';//8
+            const isUploader = manga.uploader.toString() === userId;//9
 
+            //10
             if (!isAdmin || !isUploader) {
-                throw new ForbiddenException('Bạn không có quyền xóa manga này!');
+                throw new ForbiddenException('Bạn không có quyền xóa manga này!');//11
             }
 
+            //12
             if (manga.genre && manga.genre.length > 0) {
+                //13
                 await this.genreModel.updateMany(
                     { _id: { $in: manga.genre } },
                     { $pull: { manga: mangaObjectId } }
                 );
             }
 
+            //14
             await this.userModel.updateMany(
                 {},
                 {
@@ -1127,6 +1134,7 @@ export class MangaService {
                 }
             );
 
+            //15
             await Promise.all([
                 this.viewLogModel.deleteMany({ manga: mangaObjectId }),
                 this.mangaModel.findByIdAndDelete(mangaObjectId)
