@@ -28,8 +28,8 @@ This is a [NestJS](https://nestjs.com/) server-side application written in TypeS
 
 ## 🔗 Related Projects
 
-- 🌐 **Frontend (Next.js)**: [https://github.com/your-org/frontend-nextjs](https://github.com/your-org/frontend-nextjs)
-- 📱 **Mobile App**: [https://github.com/your-org/mobile-app](https://github.com/your-org/mobile-app)
+- 🌐 **Frontend (Next.js)**: [[https://github.com/your-org/frontend-nextjs](https://github.com/your-org/frontend-nextjs)](https://github.com/VanTruongNg/MangaHybrid-FE)
+- 📱 **Mobile App**: [[https://github.com/your-org/mobile-app](https://github.com/your-org/mobile-app)](https://github.com/VanTruongNg/MangaHybrid-MOBILE)
 
 ## 🚀 Installation
 
